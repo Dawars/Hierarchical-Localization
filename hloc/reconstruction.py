@@ -110,15 +110,18 @@ def main(sfm_dir: Path,
 
     sfm_dir.mkdir(parents=True, exist_ok=True)
     database = sfm_dir / 'database.db'
+    if database.exists():
+        logger.info('The database already exists. Skipping import.')
+    else:
+        create_empty_db(database)
 
-    create_empty_db(database)
-    import_images(image_dir, database, camera_mode, image_list, image_options)
-    image_ids = get_image_ids(database)
-    import_features(image_ids, database, features)
-    import_matches(image_ids, database, pairs, matches,
-                   min_match_score, skip_geometric_verification)
-    if not skip_geometric_verification:
-        estimation_and_geometric_verification(database, pairs, verbose)
+        import_images(image_dir, database, camera_mode, image_list, image_options)
+        image_ids = get_image_ids(database)
+        import_features(image_ids, database, features)
+        import_matches(image_ids, database, pairs, matches,
+                       min_match_score, skip_geometric_verification)
+        if not skip_geometric_verification:
+            estimation_and_geometric_verification(database, pairs, verbose)
     reconstruction = run_reconstruction(
         sfm_dir, database, image_dir, verbose, mapper_options)
     if reconstruction is not None:
