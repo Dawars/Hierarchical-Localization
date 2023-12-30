@@ -112,6 +112,7 @@ def main(sfm_dir: Path,
     database = sfm_dir / 'database.db'
     if database.exists():
         logger.info('The database already exists. Skipping import.')
+        image_ids = get_image_ids(database)
     else:
         create_empty_db(database)
 
