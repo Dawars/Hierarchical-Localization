@@ -78,7 +78,7 @@ def import_matches(image_ids: Dict[str, int],
     logger.info('Importing matches into the database...')
 
     with open(str(pairs_path), 'r') as f:
-        pairs = [p.replace("/", "_").split() for p in f.readlines()]
+        pairs = [p.replace("./", "").split() for p in f.readlines()]
 
     db = COLMAPDatabase.connect(database_path)
 
