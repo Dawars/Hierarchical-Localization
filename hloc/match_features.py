@@ -1,5 +1,4 @@
 import argparse
-import signal
 from typing import Union, Optional, Dict, List, Tuple
 from pathlib import Path
 import pprint
@@ -232,7 +231,6 @@ def match_from_paths(conf: Dict,
     writer_queue = WorkQueue(partial(writer_fn, match_path=match_path), 5)
 
     for idx, data in enumerate(tqdm(loader, smoothing=.1)):
-        if stop: break
         data = {k: v if k.startswith('image')
                 else v.to(device, non_blocking=True) for k, v in data.items()}
         pred = model(data)
@@ -243,16 +241,6 @@ def match_from_paths(conf: Dict,
 
 
 if __name__ == '__main__':
-    stop = False
-
-
-    def signal_handler(sig, frame):
-        global stop
-        stop = True
-        logger.info(f'Terminating due to signal {sig}.')
-
-    signal.signal(signal.SIGTERM, signal_handler)
-
     parser = argparse.ArgumentParser()
     parser.add_argument('--pairs', type=Path, required=True)
     parser.add_argument('--export_dir', type=Path)

@@ -103,20 +103,33 @@ confs = {
             'name': 'dog',
             'descriptor': 'sosnet'
         },
-        'preprocessing': {
-            'grayscale': True,
-            'resize_max': 1600,
+    },
+    "aliked-n16-rot": {
+        "output": "feats-aliked-n16-rot",
+        "model": {
+            "name": "aliked",
+            "model_name": "aliked-n16-rot",
+            "max_num_keypoints": -1,
+            "detection_threshold": 0.2,
+            "nms_radius": 2,
+        },
+        "preprocessing": {
+            "grayscale": False,
+            "resize_max": 1024,
         },
     },
-    'disk': {
-        'output': 'feats-disk',
-        'model': {
-            'name': 'disk',
-            'max_keypoints': 5000,
+    "aliked-n32": {
+        "output": "feats-aliked-n32",
+        "model": {
+            "name": "aliked",
+            "model_name": "aliked-n32",
+            "max_num_keypoints": -1,
+            "detection_threshold": 0.2,
+            "nms_radius": 2,
         },
-        'preprocessing': {
-            'grayscale': False,
-            'resize_max': 1600,
+        "preprocessing": {
+            "grayscale": False,
+            "resize_max": 1024,
         },
     },
     # Global descriptors
@@ -135,9 +148,9 @@ confs = {
         'model': {'name': 'openibl'},
         'preprocessing': {'resize_max': 1024},
     },
-    'eigenplaces': {
-        'output': 'global-feats-eigenplaces',
-        'model': {'name': 'eigenplaces'},
+    'cosplace': {
+        'output': 'global-feats-cosplace',
+        'model': {'name': 'cosplace'},
         'preprocessing': {'resize_max': 1024},
     }
 }
