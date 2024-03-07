@@ -104,6 +104,17 @@ confs = {
             'descriptor': 'sosnet'
         },
     },
+    "disk": {
+        "output": "feats-disk",
+        "model": {
+            "name": "disk",
+            "max_keypoints": 5000,
+        },
+        "preprocessing": {
+            "grayscale": False,
+            "resize_max": 1600,
+        },
+    },
     "aliked-n16-rot": {
         "output": "feats-aliked-n16-rot",
         "model": {
@@ -152,7 +163,12 @@ confs = {
         'output': 'global-feats-cosplace',
         'model': {'name': 'cosplace'},
         'preprocessing': {'resize_max': 1024},
-    }
+    },
+    "eigenplaces": {
+        "output": "global-feats-eigenplaces",
+        "model": {"name": "eigenplaces"},
+        "preprocessing": {"resize_max": 1024},
+    },
 }
 
 
