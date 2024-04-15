@@ -1,3 +1,4 @@
+import signal
 import argparse
 from typing import Union, Optional, Dict, List, Tuple
 from pathlib import Path
@@ -185,6 +186,7 @@ def main(conf: Dict,
 
 def find_unique_new_pairs(pairs_all: List[Tuple[str]], match_path: Path = None):
     '''Avoid to recompute duplicates to save time.'''
+    logger.info('find_unique_new_pairs start.')
     pairs = set()
     for i, j in pairs_all:
         if (j, i) not in pairs:
@@ -200,7 +202,9 @@ def find_unique_new_pairs(pairs_all: List[Tuple[str]], match_path: Path = None):
                         names_to_pair_old(j, i) in fd):
                     continue
                 pairs_filtered.append((i, j))
+        logger.info('find_unique_new_pairs finish.')
         return pairs_filtered
+    logger.info('find_unique_new_pairs finished without iteration.')
     return pairs
 
 
@@ -237,17 +241,30 @@ def match_from_paths(conf: Dict,
         dataset, num_workers=5, batch_size=1, shuffle=False, pin_memory=True)
     writer_queue = WorkQueue(partial(writer_fn, match_path=match_path), 5)
 
+    logger.info(f'Starting matching loop {stop}')
     for idx, data in enumerate(tqdm(loader, smoothing=.1)):
         data = {k: v if k.startswith('image')
                 else v.to(device, non_blocking=True) for k, v in data.items()}
         pred = model(data)
         pair = names_to_pair(*pairs[idx])
         writer_queue.put((pair, pred))
+        if stop:
+            break
     writer_queue.join()
     logger.info('Finished exporting matches.')
 
 
 if __name__ == '__main__':
+    stop = False
+
+    def signal_handler(sig, frame):
+        global stop
+        stop = True
+        logger.info(f'Terminating due to signal {sig}.')
+
+    signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGINT, signal_handler)
+
     parser = argparse.ArgumentParser()
     parser.add_argument('--pairs', type=Path, required=True)
     parser.add_argument('--export_dir', type=Path)
