@@ -151,12 +151,12 @@ if __name__ == '__main__':
                             pycolmap.ImageReaderOptions().todict()))
     parser.add_argument('--mapper_options', nargs='+', default=[],
                         help='List of key=value from {}'.format(
-                            pycolmap.IncrementalMapperOptions().todict()))
+                            pycolmap.IncrementalPipelineOptions().todict()))
     args = parser.parse_args().__dict__
 
     image_options = parse_option_args(
         args.pop("image_options"), pycolmap.ImageReaderOptions())
     mapper_options = parse_option_args(
-        args.pop("mapper_options"), pycolmap.IncrementalMapperOptions())
+        args.pop("mapper_options"), pycolmap.IncrementalPipelineOptions())
 
     main(**args, image_options=image_options, mapper_options=mapper_options)
