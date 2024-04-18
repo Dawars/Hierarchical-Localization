@@ -233,7 +233,7 @@ def match_from_paths(conf: Dict,
     if is_slurm:
         slurm_id = os.environ["SLURM_JOB_ID"]
         pairs_cache_path = pairs_path.with_name(f"{slurm_id}_pairs.txt")
-        logger.info(f"Pairs cache path {pairs_cache_path}")
+        logger.info(f"Pairs cache path {pairs_cache_path.absolute()}")
         # if cache pairs file already exists, load that instead
         if pairs_cache_path.exists():
             logger.info("Pair cache exists")
