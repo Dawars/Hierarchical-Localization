@@ -1,12 +1,15 @@
 import argparse
 import contextlib
-from typing import Optional, List, Dict, Any
+import subprocess
+import os.path as osp
+import os
 import io
 import sys
 from pathlib import Path
 import numpy as np
 from tqdm import tqdm
 import pycolmap
+import h5py
 
 from . import logger
 from .utils.database import COLMAPDatabase
@@ -14,6 +17,22 @@ from .utils.io import get_keypoints, get_matches
 from .utils.parsers import parse_retrieval
 from .utils.geometry import compute_epipolar_errors
 
+NOT_EXPO_COLMAP_CFGS = {
+    "init_max_error": "--Mapper.init_max_error",
+    "abs_pose_max_error": "--Mapper.abs_pose_max_error",
+    "filter_max_reproj_error": "--Mapper.filter_max_reproj_error",
+    "tri_merge_max_reproj_error": "--Mapper.tri_merge_max_reproj_error",
+    "tri_create_max_angle_error": "--Mapper.tri_create_max_angle_error",
+    "tri_continue_max_angle_error": "--Mapper.tri_continue_max_angle_error",
+    "tri_complete_max_reproj_error": "--Mapper.tri_complete_max_reproj_error",
+
+    'ba_global_images_ratio': "--Mapper.ba_global_images_ratio",
+    'ba_global_max_num_iterations': "--Mapper.ba_global_max_num_iterations",
+    'ba_global_max_refinements' : "--Mapper.ba_global_max_refinements",
+    "multiple_models": "--Mapper.multiple_models",
+    "max_num_models": "--Mapper.max_num_models",
+    "tri_ignore_two_view_tracks": "--Mapper.tri_ignore_two_view_tracks"
+}
 
 class OutputCapture:
     def __init__(self, verbose: bool):
@@ -33,7 +52,7 @@ class OutputCapture:
 
 
 def create_db_from_model(reconstruction: pycolmap.Reconstruction,
-                         database_path: Path) -> Dict[str, int]:
+                         database_path: Path):
     if database_path.exists():
         logger.warning('The database already exists, deleting it.')
         database_path.unlink()
@@ -54,13 +73,11 @@ def create_db_from_model(reconstruction: pycolmap.Reconstruction,
     return {image.name: i for i, image in reconstruction.images.items()}
 
 
-def import_features(image_ids: Dict[str, int],
-                    database_path: Path,
-                    features_path: Path):
+def import_features(image_ids, database_path, features_path, verbose):
     logger.info('Importing features into the database...')
     db = COLMAPDatabase.connect(database_path)
 
-    for image_name, image_id in tqdm(image_ids.items()):
+    for image_name, image_id in tqdm(image_ids.items(), disable=not verbose):
         keypoints = get_keypoints(features_path, image_name)
         keypoints += 0.5  # COLMAP origin
         db.add_keypoints(image_id, keypoints)
@@ -69,12 +86,8 @@ def import_features(image_ids: Dict[str, int],
     db.close()
 
 
-def import_matches(image_ids: Dict[str, int],
-                   database_path: Path,
-                   pairs_path: Path,
-                   matches_path: Path,
-                   min_match_score: Optional[float] = None,
-                   skip_geometric_verification: bool = False):
+def import_matches(image_ids, database_path, pairs_path, matches_path,
+                   min_match_score=None, skip_geometric_verification=False, verbose=True):
     logger.info('Importing matches into the database...')
 
     with open(str(pairs_path), 'r') as f:
@@ -83,41 +96,65 @@ def import_matches(image_ids: Dict[str, int],
     db = COLMAPDatabase.connect(database_path)
 
     matched = set()
-    for name0, name1 in tqdm(pairs):
-        id0, id1 = image_ids[name0], image_ids[name1]
-        if len({(id0, id1), (id1, id0)} & matched) > 0:
-            continue
-        matches, scores = get_matches(matches_path, name0, name1)
-        if min_match_score:
-            matches = matches[scores > min_match_score]
-        db.add_matches(id0, id1, matches)
-        matched |= {(id0, id1), (id1, id0)}
 
-        if skip_geometric_verification:
-            db.add_two_view_geometry(id0, id1, matches)
+    with h5py.File(str(matches_path), 'r', libver='latest') as hfile:
+        for name0, name1 in tqdm(pairs, disable=not verbose):
+
+            id0, id1 = image_ids[name0], image_ids[name1]
+            if len({(id0, id1), (id1, id0)} & matched) > 0:
+                continue
+
+            # matches, scores = get_matches(matches_path, name0, name1) # This maybe slow due to constantly open file
+            pair = ' '.join([name0, name1])
+            matches = hfile[pair].__array__().T
+            scores = np.ones((matches.shape[0],))
+
+            if min_match_score:
+                matches = matches[scores > min_match_score]
+            db.add_matches(id0, id1, matches)
+            matched |= {(id0, id1), (id1, id0)}
+
+            if skip_geometric_verification:
+                db.add_two_view_geometry(id0, id1, matches)
 
     db.commit()
     db.close()
 
 
-def estimation_and_geometric_verification(database_path: Path,
-                                          pairs_path: Path,
-                                          verbose: bool = False):
+def estimation_and_geometric_verification(database_path, pairs_path,
+                                          verbose=False, max_error=4.0):
     logger.info('Performing geometric verification of the matches...')
-    with OutputCapture(verbose):
-        with pycolmap.ostream():
-            pycolmap.verify_matches(
-                database_path, pairs_path,
-                max_num_trials=20000, min_inlier_ratio=0.1)
+    if max_error == 4.0:
+        # by default, max_error = 4.0. However, this parameter is not exposured by pycolmap.
+        # If want to change this param, we have to use COLMAP command line.
+        with OutputCapture(verbose):
+            with pycolmap.ostream():
+                pycolmap.verify_matches(
+                    database_path, pairs_path,
+                    max_num_trials=20000, min_inlier_ratio=0.1)
+    else:
+        print("COLMAP Match Import")
+        cmd = ["colmap", "matches_importer"]
+        cmd += ["--database_path", str(database_path)]
+        cmd += ["--match_list_path", str(pairs_path)]
+        cmd += ["--match_type", "pairs"]
+        cmd += ["--SiftMatching.max_num_trials", "20000"]
+        cmd += ["--SiftMatching.min_inlier_ratio", "0.1"]
+        cmd += ['--SiftMatching.max_error', f"{max_error}"]
+        cmd += ["--SiftMatching.use_gpu", "0"]
+
+        if verbose:
+            logger.info(' '.join(cmd))
+            colmap_res = subprocess.run(cmd)
+        else:
+            colmap_res = subprocess.run(cmd, capture_output=True)
+            with open(osp.join(osp.dirname(database_path), 'output.txt'), 'w') as f:
+                f.write(colmap_res.stdout.decode())
 
 
-def geometric_verification(image_ids: Dict[str, int],
-                           reference: pycolmap.Reconstruction,
-                           database_path: Path,
-                           features_path: Path,
-                           pairs_path: Path,
-                           matches_path: Path,
-                           max_error: float = 4.0):
+
+def geometric_verification(image_ids, reference, database_path, features_path,
+                           pairs_path, matches_path, max_error=4.0, verbose=True):
     logger.info('Performing geometric verification of the matches...')
 
     pairs = parse_retrieval(pairs_path)
@@ -125,17 +162,14 @@ def geometric_verification(image_ids: Dict[str, int],
 
     inlier_ratios = []
     matched = set()
-    for name0 in tqdm(pairs):
+    for name0 in tqdm(pairs, disable=not verbose):
         id0 = image_ids[name0]
         image0 = reference.images[id0]
         cam0 = reference.cameras[image0.camera_id]
         kps0, noise0 = get_keypoints(
             features_path, name0, return_uncertainty=True)
+        kps0 = np.array([cam0.image_to_world(kp) for kp in kps0])
         noise0 = 1.0 if noise0 is None else noise0
-        if len(kps0) > 0:
-            kps0 = np.stack(cam0.image_to_world(kps0))
-        else:
-            kps0 = np.zeros((0, 2))
 
         for name1 in pairs[name0]:
             id1 = image_ids[name1]
@@ -143,11 +177,8 @@ def geometric_verification(image_ids: Dict[str, int],
             cam1 = reference.cameras[image1.camera_id]
             kps1, noise1 = get_keypoints(
                 features_path, name1, return_uncertainty=True)
+            kps1 = np.array([cam1.image_to_world(kp) for kp in kps1])
             noise1 = 1.0 if noise1 is None else noise1
-            if len(kps1) > 0:
-                kps1 = np.stack(cam1.image_to_world(kps1))
-            else:
-                kps1 = np.zeros((0, 2))
 
             matches = get_matches(matches_path, name0, name1)[0]
 
@@ -172,43 +203,63 @@ def geometric_verification(image_ids: Dict[str, int],
             inlier_ratios.append(np.mean(valid_matches))
     logger.info('mean/med/min/max valid matches %.2f/%.2f/%.2f/%.2f%%.',
                 np.mean(inlier_ratios) * 100, np.median(inlier_ratios) * 100,
-                np.min(inlier_ratios) * 100, np.max(inlier_ratios) * 100)
+                np.min(inlier_ratios) * 100, np.max(inlier_ratios) * 100) if verbose else None
 
     db.commit()
     db.close()
 
 
-def run_triangulation(model_path: Path,
-                      database_path: Path,
-                      image_dir: Path,
-                      reference_model: pycolmap.Reconstruction,
-                      verbose: bool = False,
-                      options: Optional[Dict[str, Any]] = None,
-                      ) -> pycolmap.Reconstruction:
+def run_triangulation(model_path, database_path, image_dir, reference_model, colmap_configs=None,
+                      verbose=False):
     model_path.mkdir(parents=True, exist_ok=True)
+    mapper_options = pycolmap.IncrementalMapperOptions(ba_global_use_pba=colmap_configs['use_pba'])
     logger.info('Running 3D triangulation...')
-    if options is None:
-        options = {}
     with OutputCapture(verbose):
         with pycolmap.ostream():
             reconstruction = pycolmap.triangulate_points(
-                reference_model, database_path, image_dir, model_path,
-                options=options)
+                reference_model, database_path, image_dir, model_path, True, mapper_options)
+
+    return reconstruction
+
+def run_triangulation_cmd(model_path, database_path, image_dir, reference_model, colmap_configs=None,
+                      verbose=False):
+    model_path.mkdir(parents=True, exist_ok=True)
+    logger.info('Running 3D triangulation...')
+
+    cmd = [
+        "colmap", 'point_triangulator',
+        '--database_path', str(database_path),
+        '--image_path', str(image_dir),
+        '--input_path', str(reference_model),
+        '--output_path', str(model_path),
+        '--Mapper.ba_refine_focal_length', '0',
+        '--Mapper.ba_refine_principal_point', '0',
+        '--Mapper.ba_refine_extra_params', '0'
+    ]
+
+    if colmap_configs is not None:
+        for config_name, value in colmap_configs["colmap_mapper_cfgs"].items():
+            if config_name in NOT_EXPO_COLMAP_CFGS:
+                cmd += [NOT_EXPO_COLMAP_CFGS[config_name], str(value)]
+
+    if verbose:
+        logger.info(' '.join(cmd))
+        ret = subprocess.call(cmd)
+    else:
+        ret_all = subprocess.run(cmd, capture_output=True)
+        with open(osp.join(model_path, 'output.txt'), 'w') as f:
+            f.write(ret_all.stdout.decode())
+        ret = ret_all.returncode
+
+    reconstruction = pycolmap.Reconstruction(model_path)
+
     return reconstruction
 
 
-def main(sfm_dir: Path,
-         reference_model: Path,
-         image_dir: Path,
-         pairs: Path,
-         features: Path,
-         matches: Path,
-         skip_geometric_verification: bool = False,
-         estimate_two_view_geometries: bool = False,
-         min_match_score: Optional[float] = None,
-         verbose: bool = False,
-         mapper_options: Optional[Dict[str, Any]] = None,
-         ) -> pycolmap.Reconstruction:
+
+def main(sfm_dir, reference_model, image_dir, pairs, features, matches,
+         skip_geometric_verification=False, estimate_two_view_geometries=False,
+         min_match_score=None, colmap_configs=None, verbose=False):
 
     assert reference_model.exists(), reference_model
     assert features.exists(), features
@@ -220,23 +271,30 @@ def main(sfm_dir: Path,
     reference = pycolmap.Reconstruction(reference_model)
 
     image_ids = create_db_from_model(reference, database)
-    import_features(image_ids, database, features)
+    import_features(image_ids, database, features, verbose=verbose)
     import_matches(image_ids, database, pairs, matches,
-                   min_match_score, skip_geometric_verification)
+                   min_match_score, skip_geometric_verification, verbose=verbose)
     if not skip_geometric_verification:
+        max_error = 4.0 if 'geometry_verify_thr' not in colmap_configs else colmap_configs['geometry_verify_thr']
         if estimate_two_view_geometries:
             estimation_and_geometric_verification(database, pairs, verbose)
         else:
             geometric_verification(
-                image_ids, reference, database, features, pairs, matches)
-    reconstruction = run_triangulation(sfm_dir, database, image_dir, reference,
-                                       verbose, mapper_options)
-    logger.info('Finished the triangulation with statistics:\n%s',
-                reconstruction.summary())
+                image_ids, reference, database, features, pairs, matches, verbose=verbose, max_error=max_error)
+
+    if colmap_configs['colmap_mapper_cfgs'] is None:
+        reconstruction = run_triangulation(sfm_dir / '0', database, image_dir, reference, colmap_configs=colmap_configs,
+                                        verbose=verbose)
+    else:
+        reconstruction = run_triangulation_cmd(sfm_dir / '0', database, image_dir, reference_model, colmap_configs=colmap_configs,
+                                        verbose=verbose)
+    if verbose:
+        logger.info('Finished the triangulation with statistics:\n%s',
+                    reconstruction.summary())
     return reconstruction
 
 
-def parse_option_args(args: List[str], default_options) -> Dict[str, Any]:
+def parse_option_args(args, default_options):
     options = {}
     for arg in args:
         idx = arg.find('=')
