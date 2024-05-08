@@ -169,6 +169,11 @@ confs = {
         "model": {"name": "eigenplaces"},
         "preprocessing": {"resize_max": 1024},
     },
+    "dinov2": {
+        "output": "global-feats-dinov2",
+        "model": {"name": "dinov2"},
+        "preprocessing": {"resize_max": 1024},
+    },
 }
 
 
