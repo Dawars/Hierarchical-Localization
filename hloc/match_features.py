@@ -1,3 +1,4 @@
+import math
 import os
 import signal
 import argparse
@@ -81,6 +82,14 @@ confs = {
         'model': {
             'name': 'nearest_neighbor',
             'do_mutual_check': True,
+        },
+    },
+    'NN-xfeat': {
+        'output': 'matches-NN-xfeat',
+        'model': {
+            'name': 'nearest_neighbor',
+            'do_mutual_check': True,
+            'distance_threshold': math.sqrt(2 * (1 - 0.82))
         },
     },
     'adalam': {
