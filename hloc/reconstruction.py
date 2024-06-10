@@ -102,9 +102,9 @@ def main(sfm_dir: Path,
          image_list: Optional[List[str]] = None,
          image_options: Optional[Dict[str, Any]] = None,
          mapper_options: Optional[Dict[str, Any]] = None,
-         import_images: bool = True,
-         import_features: bool = True,
-         import_matches: bool = True,
+         do_import_images: bool = True,
+         do_import_features: bool = True,
+         do_import_matches: bool = True,
          ) -> pycolmap.Reconstruction:
 
     assert features.exists(), features
@@ -119,12 +119,12 @@ def main(sfm_dir: Path,
     else:
         create_empty_db(database)
 
-    if import_images:
+    if do_import_images:
         import_images(image_dir, database, camera_mode, image_list, image_options)
         image_ids = get_image_ids(database)
-    if import_features:
+    if do_import_features:
         import_features(image_ids, database, features)
-    if import_matches:
+    if do_import_matches:
         import_matches(image_ids, database, pairs, matches,
                        min_match_score, skip_geometric_verification)
     if not skip_geometric_verification:
