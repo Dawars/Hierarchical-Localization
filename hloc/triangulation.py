@@ -1,7 +1,6 @@
 import argparse
 import contextlib
 import io
-import os
 import pickle
 import signal
 import sys
@@ -103,15 +102,10 @@ def import_matches(
     signal.signal(signal.SIGHUP, signal_handler)
     logger.info("Added signal handlers...")
 
-    is_slurm = "SLURM_JOB_ID" in os.environ
-    if is_slurm:
-        slurm_id = os.environ["SLURM_JOB_ID"]
-        matched_set_path = database_path.with_name(f"{slurm_id}_matched.pkl")
-        if matched_set_path.exists():
-            logger.info(f"Loading matched set from {matched_set_path}...")
-            matched = pickle.load(matched_set_path.open("rb"))
-        else:
-            matched = set()
+    matched_set_path = database_path.with_name(f"matched.pkl")
+    if matched_set_path.exists():
+        logger.info(f"Loading matched set from {matched_set_path}...")
+        matched = pickle.load(matched_set_path.open("rb"))
     else:
         matched = set()
 
@@ -128,12 +122,10 @@ def import_matches(
 
         if stop:
             logger.info(f"Stopping at {i}")
-            if is_slurm:
-                slurm_id = os.environ["SLURM_JOB_ID"]
-                matched_set_path = database_path.with_name(f"{slurm_id}_matched.pkl")
-                logger.info(f"Saving matched set to {matched_set_path}...")
-                pickle.dump(matched, matched_set_path.open("wb"), protocol=pickle.HIGHEST_PROTOCOL)
-                logger.info(f"Saving finished...")
+            matched_set_path = database_path.with_name(f"matched.pkl")
+            logger.info(f"Saving matched set to {matched_set_path}...")
+            pickle.dump(matched, matched_set_path.open("wb"), protocol=pickle.HIGHEST_PROTOCOL)
+            logger.info(f"Saving finished...")
             break
 
         id0, id1 = image_ids[name0], image_ids[name1]
