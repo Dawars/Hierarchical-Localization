@@ -102,6 +102,9 @@ def main(sfm_dir: Path,
          image_list: Optional[List[str]] = None,
          image_options: Optional[Dict[str, Any]] = None,
          mapper_options: Optional[Dict[str, Any]] = None,
+         import_images: bool = True,
+         import_features: bool = True,
+         import_matches: bool = True,
          ) -> pycolmap.Reconstruction:
 
     assert features.exists(), features
@@ -116,19 +119,33 @@ def main(sfm_dir: Path,
     else:
         create_empty_db(database)
 
+    if import_images:
         import_images(image_dir, database, camera_mode, image_list, image_options)
         image_ids = get_image_ids(database)
+    if import_features:
         import_features(image_ids, database, features)
+    if import_matches:
         import_matches(image_ids, database, pairs, matches,
                        min_match_score, skip_geometric_verification)
-        if not skip_geometric_verification:
-            estimation_and_geometric_verification(database, pairs, verbose)
+    if not skip_geometric_verification:
+        estimation_and_geometric_verification(database, pairs, verbose)
     reconstruction = run_reconstruction(
         sfm_dir, database, image_dir, verbose, mapper_options)
     if reconstruction is not None:
         logger.info(f'Reconstruction statistics:\n{reconstruction.summary()}'
                     + f'\n\tnum_input_images = {len(image_ids)}')
     return reconstruction
+
+
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
 
 
 if __name__ == '__main__':
@@ -139,6 +156,9 @@ if __name__ == '__main__':
     parser.add_argument('--pairs', type=Path, required=True)
     parser.add_argument('--features', type=Path, required=True)
     parser.add_argument('--matches', type=Path, required=True)
+    parser.add_argument('--import_images', type=str2bool, nargs='?', const=True, default=True)
+    parser.add_argument('--import_features', type=str2bool, nargs='?', const=True, default=True)
+    parser.add_argument('--import_matches', type=str2bool, nargs='?', const=True, default=True)
 
     parser.add_argument('--camera_mode', type=str, default="AUTO",
                         choices=list(pycolmap.CameraMode.__members__.keys()))
