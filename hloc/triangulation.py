@@ -1,6 +1,9 @@
 import argparse
 import contextlib
 import io
+import os
+import pickle
+import signal
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -76,6 +79,15 @@ def import_features(
     db.close()
 
 
+stop = False
+
+
+def signal_handler(sig, frame):
+    global stop
+    stop = True
+    logger.info(f'Terminating due to signal {sig}.')
+
+
 def import_matches(
     image_ids: Dict[str, int],
     database_path: Path,
@@ -86,13 +98,44 @@ def import_matches(
 ):
     logger.info("Importing matches into the database...")
 
+    signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGHUP, signal_handler)
+    logger.info("Added signal handlers...")
+
+    is_slurm = "SLURM_JOB_ID" in os.environ
+    if is_slurm:
+        slurm_id = os.environ["SLURM_JOB_ID"]
+        matched_set_path = database_path.with_name(f"{slurm_id}_matched.pkl")
+        if matched_set_path.exists():
+            logger.info(f"Loading matched set from {matched_set_path}...")
+            matched = pickle.load(matched_set_path.open("rb"))
+        else:
+            matched = set()
+    else:
+        matched = set()
+
     with open(str(pairs_path), "r") as f:
         pairs = [p.split() for p in f.readlines()]
 
     db = COLMAPDatabase.connect(database_path)
 
-    matched = set()
-    for name0, name1 in tqdm(pairs):
+    for i, (name0, name1) in tqdm(enumerate(pairs)):
+        if i % 10_000 == 0:
+            logger.info(f"Committing transaction start: {i}")
+            db.commit()
+            logger.info(f"Committing transaction end: {i}")
+
+        if stop:
+            logger.info(f"Stopping at {i}")
+            if is_slurm:
+                slurm_id = os.environ["SLURM_JOB_ID"]
+                matched_set_path = database_path.with_name(f"{slurm_id}_matched.pkl")
+                logger.info(f"Saving matched set to {matched_set_path}...")
+                pickle.dump(matched, matched_set_path.open("wb"), protocol=pickle.HIGHEST_PROTOCOL)
+                logger.info(f"Saving finished...")
+            break
+
         id0, id1 = image_ids[name0], image_ids[name1]
         if len({(id0, id1), (id1, id0)} & matched) > 0:
             continue
@@ -105,8 +148,11 @@ def import_matches(
         if skip_geometric_verification:
             db.add_two_view_geometry(id0, id1, matches)
 
+    logger.info(f"Committing transaction start")
     db.commit()
+    logger.info(f"Committing transaction end")
     db.close()
+    logger.info(f"Closed db connection")
 
 
 def estimation_and_geometric_verification(
