@@ -156,9 +156,9 @@ if __name__ == '__main__':
     parser.add_argument('--pairs', type=Path, required=True)
     parser.add_argument('--features', type=Path, required=True)
     parser.add_argument('--matches', type=Path, required=True)
-    parser.add_argument('--import_images', type=str2bool, nargs='?', const=True, default=True)
-    parser.add_argument('--import_features', type=str2bool, nargs='?', const=True, default=True)
-    parser.add_argument('--import_matches', type=str2bool, nargs='?', const=True, default=True)
+    parser.add_argument('--do_import_images', type=str2bool, nargs='?', const=True, default=True)
+    parser.add_argument('--do_import_features', type=str2bool, nargs='?', const=True, default=True)
+    parser.add_argument('--do_import_matches', type=str2bool, nargs='?', const=True, default=True)
 
     parser.add_argument('--camera_mode', type=str, default="AUTO",
                         choices=list(pycolmap.CameraMode.__members__.keys()))
