@@ -115,7 +115,7 @@ def import_matches(
     db = COLMAPDatabase.connect(database_path)
 
     for i, (name0, name1) in tqdm(enumerate(pairs), total=len(pairs)):
-        if i % 10_000 == 0:
+        if i % 1_000_000 == 0 and i > 0:
             logger.info(f"Committing transaction start: {i}")
             db.commit()
             logger.info(f"Committing transaction end: {i}")
