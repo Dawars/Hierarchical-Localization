@@ -115,18 +115,19 @@ def import_matches(
     db = COLMAPDatabase.connect(database_path)
 
     for i, (name0, name1) in tqdm(enumerate(pairs), total=len(pairs)):
-        if i % 1_000_000 == 0 and i > 0:
+        if (i % 1_000_000 == 0 and i > 0) or stop:
             logger.info(f"Committing transaction start: {i}")
             db.commit()
             logger.info(f"Committing transaction end: {i}")
 
-        if stop:
-            logger.info(f"Stopping at {i}")
             matched_set_path = database_path.with_name(f"matched.pkl")
             logger.info(f"Saving matched set to {matched_set_path}...")
             pickle.dump(matched, matched_set_path.open("wb"), protocol=pickle.HIGHEST_PROTOCOL)
             logger.info(f"Saving finished...")
-            break
+
+            if stop:
+                logger.info(f"Stopping at {i}")
+                break
 
         id0, id1 = image_ids[name0], image_ids[name1]
         if len({(id0, id1), (id1, id0)} & matched) > 0:
