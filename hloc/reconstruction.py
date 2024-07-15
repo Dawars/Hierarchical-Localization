@@ -169,9 +169,12 @@ if __name__ == '__main__':
     parser.add_argument('--image_options', nargs='+', default=[],
                         help='List of key=value from {}'.format(
                             pycolmap.ImageReaderOptions().todict()))
-    parser.add_argument('--mapper_options', nargs='+', default=[],
+    parser.add_argument('--pipeline_options', nargs='+', default=[],
                         help='List of key=value from {}'.format(
                             pycolmap.IncrementalPipelineOptions().todict()))
+    parser.add_argument('--mapper_options', nargs='+', default=[],
+                        help='List of key=value from {}'.format(
+                            pycolmap.IncrementalMapperOptions().todict()))
     args = parser.parse_args().__dict__
 
     image_options = parse_option_args(
