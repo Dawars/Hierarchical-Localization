@@ -126,7 +126,7 @@ confs = {
         },
         "preprocessing": {
             "grayscale": False,
-            "resize_max": 1024,
+            "resize_max": 1600,
         },
     },
     "aliked-n32": {
@@ -140,7 +140,7 @@ confs = {
         },
         "preprocessing": {
             "grayscale": False,
-            "resize_max": 1024,
+            "resize_max": 1600,
         },
     },
     "xfeat": {
