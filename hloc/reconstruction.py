@@ -184,5 +184,5 @@ if __name__ == '__main__':
     pipeline_options = parse_option_args(
         args.pop("pipeline_options"), pycolmap.IncrementalPipelineOptions()
     )
-    pipeline_options.mapper = mapper_options
+    pipeline_options["mapper"] = mapper_options
     main(**args, image_options=image_options, pipeline_options=pipeline_options)
