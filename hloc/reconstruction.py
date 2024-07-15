@@ -101,7 +101,7 @@ def main(sfm_dir: Path,
          min_match_score: Optional[float] = None,
          image_list: Optional[List[str]] = None,
          image_options: Optional[Dict[str, Any]] = None,
-         mapper_options: Optional[Dict[str, Any]] = None,
+         pipeline_options: Optional[Dict[str, Any]] = None,
          do_import_images: bool = True,
          do_import_features: bool = True,
          do_import_matches: bool = True,
@@ -130,7 +130,7 @@ def main(sfm_dir: Path,
     if not skip_geometric_verification:
         estimation_and_geometric_verification(database, pairs, verbose)
     reconstruction = run_reconstruction(
-        sfm_dir, database, image_dir, verbose, mapper_options)
+        sfm_dir, database, image_dir, verbose, pipeline_options)
     if reconstruction is not None:
         logger.info(f'Reconstruction statistics:\n{reconstruction.summary()}'
                     + f'\n\tnum_input_images = {len(image_ids)}')
@@ -177,6 +177,9 @@ if __name__ == '__main__':
     image_options = parse_option_args(
         args.pop("image_options"), pycolmap.ImageReaderOptions())
     mapper_options = parse_option_args(
-        args.pop("mapper_options"), pycolmap.IncrementalPipelineOptions())
-
-    main(**args, image_options=image_options, mapper_options=mapper_options)
+        args.pop("mapper_options"), pycolmap.IncrementalMapperOptions())
+    pipeline_options = parse_option_args(
+        args.pop("pipeline_options"), pycolmap.IncrementalPipelineOptions()
+    )
+    pipeline_options.mapper = mapper_options
+    main(**args, image_options=image_options, pipeline_options=pipeline_options)
