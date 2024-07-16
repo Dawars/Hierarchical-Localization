@@ -12,3 +12,4 @@ kornia>=0.6.11
 gdown
 lightglue @ git+https://github.com/cvg/LightGlue
 transformers
+DeDoDe @ git+https://github.com/Parskatt/DeDoDe.git

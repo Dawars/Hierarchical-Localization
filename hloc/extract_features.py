@@ -168,6 +168,62 @@ confs = {
             "resize_max": 1600,
         },
     },
+    "dedode_n2000_B": {
+        "output": "feats-dedode-n2000-B",
+        "model": {
+            "name": "dedode",
+            "model_detector_name": "dedode_detector_L.pth",
+            "model_descriptor_name": "dedode_descriptor_B.pth",
+            "max_keypoints": 2000,
+            "match_threshold": 0.2,
+        },
+        "preprocessing": {
+            "grayscale": False,
+            "resize_max": 1600,
+        },
+    },
+    "dedode_v2_n2000_B": {
+        "output": "feats-dedode_v2-n2000-B",
+        "model": {
+            "name": "dedode",
+            "model_detector_name": "dedode_detector_L_v2.pth",
+            "model_descriptor_name": "dedode_descriptor_B.pth",
+            "max_keypoints": 2000,
+            "match_threshold": 0.2,
+        },
+        "preprocessing": {
+            "grayscale": False,
+            "resize_max": 1600,
+        },
+    },
+    "dedode_n10k_G": {
+        "output": "feats-dedode-n10k-G",
+        "model": {
+            "name": "dedode",
+            "model_detector_name": "dedode_detector_L.pth",
+            "model_descriptor_name": "dedode_descriptor_G.pth",
+            "max_keypoints": 10_000,
+            "match_threshold": 0.2,
+        },
+        "preprocessing": {
+            "grayscale": False,
+            "resize_max": 1600,
+        },
+    },
+    "dedode_v2_n10k_G": {
+        "output": "feats-dedode_v2-n10k-G",
+        "model": {
+            "name": "dedode",
+            "model_detector_name": "dedode_detector_L_v2.pth",
+            "model_descriptor_name": "dedode_descriptor_G.pth",
+            "max_keypoints": 10_000,
+            "match_threshold": 0.2,
+        },
+        "preprocessing": {
+            "grayscale": False,
+            "resize_max": 1600,
+        },
+    },
     # Global descriptors
     'dir': {
         'output': 'global-feats-dir',
