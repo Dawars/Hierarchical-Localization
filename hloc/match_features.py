@@ -1,5 +1,7 @@
-import argparse
+import math
+import os
 import signal
+import argparse
 from typing import Union, Optional, Dict, List, Tuple
 from pathlib import Path
 import pprint
@@ -34,6 +36,13 @@ confs = {
         'model': {
             'name': 'lightglue',
             'features': 'disk',
+        },
+    },
+    "aliked+lightglue": {
+        "output": "matches-aliked-lightglue",
+        "model": {
+            "name": "lightglue",
+            "features": "aliked",
         },
     },
     'superglue': {
@@ -73,6 +82,14 @@ confs = {
         'model': {
             'name': 'nearest_neighbor',
             'do_mutual_check': True,
+        },
+    },
+    'NN-xfeat': {
+        'output': 'matches-NN-xfeat',
+        'model': {
+            'name': 'nearest_neighbor',
+            'do_mutual_check': True,
+            'distance_threshold': math.sqrt(2 * (1 - 0.82))
         },
     },
     'adalam': {
@@ -179,11 +196,13 @@ def main(conf: Dict,
 
 def find_unique_new_pairs(pairs_all: List[Tuple[str]], match_path: Path = None):
     '''Avoid to recompute duplicates to save time.'''
+    logger.info('find_unique_new_pairs start.')
     pairs = set()
     for i, j in pairs_all:
         if (j, i) not in pairs:
             pairs.add((i, j))
     pairs = list(pairs)
+    logger.info('find_unique_new_pairs dedup start.')
     if match_path is not None and match_path.exists():
         with h5py.File(str(match_path), 'r', libver='latest') as fd:
             pairs_filtered = []
@@ -194,7 +213,9 @@ def find_unique_new_pairs(pairs_all: List[Tuple[str]], match_path: Path = None):
                         names_to_pair_old(j, i) in fd):
                     continue
                 pairs_filtered.append((i, j))
+        logger.info('find_unique_new_pairs finish.')
         return pairs_filtered
+    logger.info('find_unique_new_pairs finished without iteration.')
     return pairs
 
 
@@ -215,6 +236,19 @@ def match_from_paths(conf: Dict,
     match_path.parent.mkdir(exist_ok=True, parents=True)
 
     assert pairs_path.exists(), pairs_path
+
+    # if running in a slurm environment, get job id
+    is_slurm = "SLURM_JOB_ID" in os.environ
+    if is_slurm:
+        slurm_id = os.environ["SLURM_JOB_ID"]
+        pairs_cache_path = pairs_path.with_name(f"{slurm_id}_pairs.txt")
+        logger.info(f"Pairs cache path {pairs_cache_path.absolute()}")
+        # if cache pairs file already exists, load that instead
+        if pairs_cache_path.exists():
+            logger.info("Pair cache exists")
+            pairs_path = pairs_cache_path
+            overwrite = True  # skip duplicates checking
+
     pairs = parse_retrieval(pairs_path)
     pairs = [(q, r) for q, rs in pairs.items() for r in rs]
     pairs = find_unique_new_pairs(pairs, None if overwrite else match_path)
@@ -231,20 +265,26 @@ def match_from_paths(conf: Dict,
         dataset, num_workers=5, batch_size=1, shuffle=False, pin_memory=True)
     writer_queue = WorkQueue(partial(writer_fn, match_path=match_path), 5)
 
+    logger.info(f'Starting matching loop {stop}')
     for idx, data in enumerate(tqdm(loader, smoothing=.1)):
-        if stop: break
         data = {k: v if k.startswith('image')
                 else v.to(device, non_blocking=True) for k, v in data.items()}
         pred = model(data)
         pair = names_to_pair(*pairs[idx])
         writer_queue.put((pair, pred))
+        if stop:
+            break
     writer_queue.join()
+
+    if is_slurm:
+        logger.info(f'Started writing pairs cache from {idx}')
+        pairs_cache_path.write_text("\n".join(" ".join([i, j]) for i, j in dataset.pairs[idx + 1:]))
+        logger.info('Finished writing pairs cache')
     logger.info('Finished exporting matches.')
 
 
 if __name__ == '__main__':
     stop = False
-
 
     def signal_handler(sig, frame):
         global stop
@@ -252,6 +292,7 @@ if __name__ == '__main__':
         logger.info(f'Terminating due to signal {sig}.')
 
     signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGINT, signal_handler)
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--pairs', type=Path, required=True)
