@@ -45,6 +45,13 @@ confs = {
             "features": "aliked",
         },
     },
+    "dedode+lightglue": {
+        "output": "matches-dedode-lightglue",
+        "model": {
+            "name": "lightglue",
+            "features": "dedodeg",
+        },
+    },
     'superglue': {
         'output': 'matches-superglue',
         'model': {
