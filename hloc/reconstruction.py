@@ -175,6 +175,9 @@ if __name__ == '__main__':
     parser.add_argument('--mapper_options', nargs='+', default=[],
                         help='List of key=value from {}'.format(
                             pycolmap.IncrementalMapperOptions().todict()))
+    parser.add_argument('--triangulator_options', nargs='+', default=[],
+                        help='List of key=value from {}'.format(
+                            pycolmap.IncrementalTriangulatorOptions().todict()))
     args = parser.parse_args().__dict__
 
     image_options = parse_option_args(
@@ -184,5 +187,9 @@ if __name__ == '__main__':
     pipeline_options = parse_option_args(
         args.pop("pipeline_options"), pycolmap.IncrementalPipelineOptions()
     )
+    triangulator_options = parse_option_args(
+        args.pop("triangulator_options"), pycolmap.IncrementalTriangulatorOptions()
+    )
     pipeline_options["mapper"] = mapper_options
+    pipeline_options["triangulation"] = triangulator_options
     main(**args, image_options=image_options, pipeline_options=pipeline_options)
