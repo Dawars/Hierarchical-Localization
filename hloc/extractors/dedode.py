@@ -18,13 +18,13 @@ class DeDoDe(BaseModel):
 
     def _forward(self, data):
         image = data["image"]
-        features = self.model(
+        keypoints, scores, descriptors = self.model(
             image,
             n=self.conf["max_keypoints"],
             pad_if_not_divisible=self.conf["pad_if_not_divisible"],
         )
         return {
-            "keypoints": [f.keypoints for f in features],
-            "keypoint_scores": [f.detection_scores for f in features],
-            "descriptors": [f.descriptors.t() for f in features],
+            "keypoints": [f for f in keypoints],  # list[N,2]
+            "keypoint_scores": [f for f in scores],  # list[N]
+            "descriptors": [f.t() for f in descriptors]  # list[D,N]
         }
