@@ -56,7 +56,7 @@ def run_reconstruction(sfm_dir, database_path, image_dir, colmap_configs=None, v
     models_path.mkdir(exist_ok=True, parents=True)
     if colmap_configs['colmap_mapper_cfgs'] is None:
         logger.info(f"Use PyCOLMAP for reconstruction...")
-        mapper_options = pycolmap.IncrementalMapperOptions(ba_global_use_pba=colmap_configs['use_pba'], ba_refine_focal_length=not colmap_configs['no_refine_intrinsics'], ba_refine_extra_params=not colmap_configs['no_refine_intrinsics'], num_threads=min(multiprocessing.cpu_count(), colmap_configs['n_threads'] if 'n_threads' in colmap_configs else 16))
+        mapper_options = pycolmap.IncrementalPipelineOptions(ba_refine_focal_length=not colmap_configs['no_refine_intrinsics'], ba_refine_extra_params=not colmap_configs['no_refine_intrinsics'], num_threads=min(multiprocessing.cpu_count(), colmap_configs['n_threads'] if 'n_threads' in colmap_configs else 16))
         logger.info('Running 3D reconstruction...')
         with OutputCapture(verbose):
             with pycolmap.ostream():
