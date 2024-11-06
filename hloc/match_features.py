@@ -172,7 +172,6 @@ def writer_fn(inp, match_path):
             scores = pred['matching_scores0'][0].cpu().half().numpy()
             grp.create_dataset('matching_scores0', data=scores)
 
-
 def main(conf: Dict,
          pairs: Path, features: Union[Path, str],
          export_dir: Optional[Path] = None,
@@ -225,6 +224,7 @@ def find_unique_new_pairs(pairs_all: List[Tuple[str]], match_path: Path = None):
     logger.info('find_unique_new_pairs finished without iteration.')
     return pairs
 
+stop = False  # when importing package
 
 @torch.no_grad()
 def match_from_paths(conf: Dict,
