@@ -52,12 +52,12 @@ confs = {
             "features": "dedodeg",
         },
     },
-    'superglue': {
-        'output': 'matches-superglue',
-        'model': {
-            'name': 'superglue',
-            'weights': 'outdoor',
-            'sinkhorn_iterations': 50,
+    "superglue": {
+        "output": "matches-superglue",
+        "model": {
+            "name": "superglue",
+            "weights": "outdoor",
+            "sinkhorn_iterations": 50,
         },
     },
     'superglue-fast': {
