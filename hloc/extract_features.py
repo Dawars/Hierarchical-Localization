@@ -224,6 +224,11 @@ confs = {
         "model": {"name": "dinov2"},
         "preprocessing": {"resize_max": 1024},
     },
+    "salad": {
+        "output": "global-feats-salad",
+        "model": {"name": "salad"},
+        "preprocessing": {"resize_max": 640},
+    },
 }
 
 
