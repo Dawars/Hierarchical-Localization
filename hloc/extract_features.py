@@ -146,6 +146,14 @@ confs = {
         "model": {"name": "eigenplaces"},
         "preprocessing": {"resize_max": 1024},
     },
+    "anyloc": {
+        "output": "global-feats-anyloc",
+        "model": {"name": "anyloc",
+                  "backbone": "DINOv2",
+                  "domain": "urban",
+                  },
+        "preprocessing": {"resize_max": 640},
+    },
 }
 
 
