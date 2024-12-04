@@ -229,6 +229,14 @@ confs = {
         "model": {"name": "salad"},
         "preprocessing": {"resize_max": 640},
     },
+    "anyloc": {
+        "output": "global-feats-anyloc",
+        "model": {"name": "anyloc",
+                  "backbone": "DINOv2",
+                  "domain": "urban",
+                  },
+        "preprocessing": {"resize_max": 640},
+    },
 }
 
 
