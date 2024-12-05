@@ -5,7 +5,7 @@ import numpy as np
 import torch
 import torchvision.transforms as tfm
 
-from .. import DEVICE, MODEL_REPO_ID, logger
+from .. import logger
 
 # TODO add manually
 # mast3r_path = Path(__file__).parent / "../../third_party/mast3r"
@@ -21,6 +21,10 @@ from mast3r.model import AsymmetricMASt3R
 
 from hloc.matchers.duster import Duster
 
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+# model hub: https://huggingface.co/Realcat/imatchui_checkpoint
+MODEL_REPO_ID = "Realcat/imatchui_checkpoints"
 
 class Mast3r(Duster):
     default_conf = {
