@@ -15,7 +15,7 @@ class EigenPlaces(BaseModel):
     def _init(self, conf):
 
         self.net  = torch.hub.load("AnyLoc/DINO", "get_vlad_model",
-                               domain="indoor", backbone=conf["backbone"]).eval()
+                               domain="indoor", backbone=conf["backbone"], device="cuda").eval()
 
         self.transform = tvf.Resize((224, 224), InterpolationMode.BICUBIC)
 
