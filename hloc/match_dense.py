@@ -371,6 +371,7 @@ def load_keypoints(
 def aggregate_matches(
     conf: Dict,
     pairs: List[Tuple[str, str]],
+    pairwise_match_path: Path,
     match_path: Path,
     feature_path: Path,
     required_queries: Optional[Set[str]] = None,
@@ -394,13 +395,13 @@ def aggregate_matches(
     if len(required_queries) > 0:
         logger.info(f"Aggregating keypoints for {len(required_queries)} images.")
     n_kps = 0
-    with h5py.File(str(match_path), "a") as fd:
+    with h5py.File(str(pairwise_match_path), "a") as fd_pairs, h5py.File(str(match_path), "a") as fd:
         for name0, name1 in tqdm(pairs, smoothing=0.1):
             pair = names_to_pair(name0, name1)
-            grp = fd[pair]
-            kpts0 = grp["keypoints0"].__array__()
-            kpts1 = grp["keypoints1"].__array__()
-            scores = grp["scores"].__array__()
+            grp_pairs = fd_pairs[pair]
+            kpts0 = grp_pairs["keypoints0"].__array__()
+            kpts1 = grp_pairs["keypoints1"].__array__()
+            scores = grp_pairs["scores"].__array__()
 
             # Aggregate local features
             update0 = name0 in required_queries
@@ -438,7 +439,8 @@ def aggregate_matches(
             matches0, scores0 = kpids_to_matches0(mkp_ids0, mkp_ids1, scores)
 
             assert kpts0.shape[0] == scores.shape[0]
-            grp.create_dataset("matches0", data=matches0)
+            grp = fd.create_group(pair)  # output matches
+            grp.create_dataset("matches0", data=matches0)  # what if rerunning? needs to delete first?
             grp.create_dataset("matching_scores0", data=scores0)
 
             # Convert bins to kps if finished, and store them
@@ -510,19 +512,21 @@ def match_and_assign(
     conf: Dict,
     pairs_path: Path,
     image_dir: Path,
+    pairwise_match_path: Path,  # out
     match_path: Path,  # out
     feature_path_q: Path,  # out
     feature_paths_refs: Optional[List[Path]] = [],
     max_kps: Optional[int] = 8192,
     overwrite: bool = False,
 ) -> Path:
-    for path in feature_paths_refs:
+    for path in feature_paths_refs:  # e.g. disk
         if not path.exists():
             raise FileNotFoundError(f"Reference feature file {path}.")
     pairs = parse_retrieval(pairs_path)
     pairs = [(q, r) for q, rs in pairs.items() for r in rs]
-    pairs = find_unique_new_pairs(pairs, None if overwrite else match_path)
-    required_queries = set(sum(pairs, ()))
+    # pairs = [tuple(line.strip().split(" ")) for line in Path(pairs_path).read_text().strip().split("\n")]
+    pairs_new = find_unique_new_pairs(pairs, None if overwrite else pairwise_match_path)
+    required_queries = set(sum(pairs, ()))  # image list in (new) pairs
 
     name2ref = {
         n: i for i, p in enumerate(feature_paths_refs) for n in list_h5_names(p)
@@ -539,12 +543,11 @@ def match_and_assign(
         if not overwrite:
             required_queries = required_queries - existing_queries
 
-    if len(pairs) == 0 and len(required_queries) == 0:
+    if len(pairs_new) == 0 and len(required_queries) == 0:
         logger.info("All pairs exist. Skipping dense matching.")
-        return
-
+        # return
     # extract semi-dense matches
-    match_dense(conf, pairs, image_dir, match_path, existing_refs=existing_refs)
+    match_dense(conf, pairs_new, image_dir, pairwise_match_path, existing_refs=existing_refs)
 
     logger.info("Assigning matches...")
 
@@ -557,6 +560,7 @@ def match_and_assign(
     cpdict = aggregate_matches(
         conf,
         pairs,
+        pairwise_match_path,
         match_path,
         feature_path=feature_path_q,
         required_queries=required_queries,
@@ -577,6 +581,7 @@ def main(
     pairs: Path,
     image_dir: Path,
     export_dir: Optional[Path] = None,
+    pairwise_matches: Optional[Path] = None,  # out
     matches: Optional[Path] = None,  # out
     features: Optional[Path] = None,  # out
     features_ref: Optional[Path] = None,
@@ -616,7 +621,7 @@ def main(
         raise TypeError(str(features_ref))
 
     match_and_assign(
-        conf, pairs, image_dir, matches, features_q, features_ref, max_kps, overwrite
+        conf, pairs, image_dir, pairwise_matches, matches, features_q, features_ref, max_kps, overwrite
     )
 
     return features_q, matches
@@ -627,7 +632,10 @@ if __name__ == "__main__":
     parser.add_argument("--pairs", type=Path, required=True)
     parser.add_argument("--image_dir", type=Path, required=True)
     parser.add_argument("--export_dir", type=Path, required=True)
-    parser.add_argument("--matches", type=Path, default=confs["loftr"]["output"])
+    parser.add_argument("--pairwise-matches", type=Path, default=confs["loftr"]["output"]+ " _pairs",
+                        description="Path to save pairwise matched kps locations")
+    parser.add_argument("--matches", type=Path, default=confs["loftr"]["output"],
+                        description="Path to save aggregated kpts and match ids")
     parser.add_argument(
         "--features", type=str, default="feats_" + confs["loftr"]["output"]
     )
@@ -638,6 +646,7 @@ if __name__ == "__main__":
         args.pairs,
         args.image_dir,
         args.export_dir,
+        args.pairwise_matches,
         args.matches,
         args.features,
     )
