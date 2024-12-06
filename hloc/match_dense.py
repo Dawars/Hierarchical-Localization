@@ -592,6 +592,8 @@ def main(
         "Extracting semi-dense features with configuration:" f"\n{pprint.pformat(conf)}"
     )
 
+    assert not matches.exists()
+
     if features is None:
         features = "feats_"
 
