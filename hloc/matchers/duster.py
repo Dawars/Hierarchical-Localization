@@ -4,6 +4,7 @@ from pathlib import Path
 import numpy as np
 import torch
 import torchvision.transforms as tfm
+from huggingface_hub import hf_hub_download
 
 from .. import logger
 from ..utils.base_model import BaseModel
@@ -121,3 +122,11 @@ class Duster(BaseModel):
                 "keypoints1": torch.from_numpy(mkpts1),
             }
         return pred
+
+    def _download_model(self, repo_id=None, filename=None, **kwargs):
+        """Download model from hf hub and return the path."""
+        return hf_hub_download(
+            repo_type="model",
+            repo_id=repo_id,
+            filename=filename,
+        )
