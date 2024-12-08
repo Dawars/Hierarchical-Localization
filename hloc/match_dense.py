@@ -575,7 +575,7 @@ def match_and_assign(
     # Invalidate matches that are far from selected bin by reassignment
     if max_kps is not None:
         logger.info(f'Reassign matches with max_error={conf["max_error"]}.')
-        assign_matches(pairs, match_path, cpdict, max_error=conf["max_error"])
+        assign_matches(pairs, pairwise_match_path, match_path, cpdict, max_error=conf["max_error"])
 
 
 @torch.no_grad()
