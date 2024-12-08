@@ -548,6 +548,7 @@ def match_and_assign(
     if len(pairs_new) == 0 and len(required_queries) == 0:
         logger.info("All pairs exist. Skipping dense matching.")
         # return
+    print(f"Matching {len(pairs_new)} {len(required_queries)=}")
     # extract semi-dense matches
     match_dense(conf, pairs_new, image_dir, pairwise_match_path, existing_refs=existing_refs)
 
