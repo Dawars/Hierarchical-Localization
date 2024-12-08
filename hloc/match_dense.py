@@ -480,6 +480,7 @@ def aggregate_matches(
 
 def assign_matches(
     pairs: List[Tuple[str, str]],
+    pairwise_match_path: Path,
     match_path: Path,
     keypoints: Union[List[Path], Dict[str, np.array]],
     max_error: float,
@@ -487,10 +488,10 @@ def assign_matches(
     if isinstance(keypoints, list):
         keypoints = load_keypoints({}, keypoints, kpts_as_bin=set([]))
     assert len(set(sum(pairs, ())) - set(keypoints.keys())) == 0
-    with h5py.File(str(match_path), "a") as fd:
+    with h5py.File(str(pairwise_match_path), "a") as fd_pairs, h5py.File(str(match_path), "a") as fd:
         for name0, name1 in tqdm(pairs):
             pair = names_to_pair(name0, name1)
-            grp = fd[pair]
+            grp = fd_pairs[pair]
             kpts0 = grp["keypoints0"].__array__()
             kpts1 = grp["keypoints1"].__array__()
             scores = grp["scores"].__array__()
@@ -502,6 +503,7 @@ def assign_matches(
             matches0, scores0 = kpids_to_matches0(mkp_ids0, mkp_ids1, scores)
 
             # overwrite matches0 and matching_scores0
+            grp = fd[pair]
             del grp["matches0"], grp["matching_scores0"]
             grp.create_dataset("matches0", data=matches0)
             grp.create_dataset("matching_scores0", data=scores0)
