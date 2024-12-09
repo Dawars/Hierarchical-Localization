@@ -115,6 +115,17 @@ confs = {
             "resize_max": 1600,
         },
     },
+    "disk_unlimited": {
+        "output": "feats-disk-unlimited",
+        "model": {
+            "name": "disk",
+            "max_keypoints": None,
+        },
+        "preprocessing": {
+            "grayscale": False,
+            "resize_max": 1600,
+        },
+    },
     "aliked_n16_rot": {
         "output": "feats-aliked-n16-rot",
         "model": {
