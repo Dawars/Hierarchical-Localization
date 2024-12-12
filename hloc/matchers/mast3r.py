@@ -60,7 +60,7 @@ class Mast3r(Duster):
         pairs = make_pairs(
             images, scene_graph="complete", prefilter=None, symmetrize=True
         )
-        output = inference(pairs, self.net, DEVICE, batch_size=1)
+        output = inference(pairs, self.net, DEVICE, batch_size=1, verbose=False)
 
         # at this stage, you have the raw dust3r predictions
         _, pred1 = output["view1"], output["pred1"]
