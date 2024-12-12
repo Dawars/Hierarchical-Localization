@@ -66,23 +66,39 @@ class Mast3r(Duster):
         _, pred1 = output["view1"], output["pred1"]
         _, pred2 = output["view2"], output["pred2"]
 
-        desc1, desc2 = (
+        desc1_1, desc2_1 = (
             pred1["desc"][1].squeeze(0).detach(),
             pred2["desc"][1].squeeze(0).detach(),
         )
 
         # find 2D-2D matches between the two images
-        matches_im0, matches_im1 = fast_reciprocal_NNs(
-            desc1,
-            desc2,
+        matches_im0_1, matches_im1_1 = fast_reciprocal_NNs(
+            desc1_1,
+            desc2_1,
             subsample_or_initxy1=2,
             device=DEVICE,
             dist="dot",
             block_size=2**13,
         )
 
-        mkpts0 = matches_im0.copy()
-        mkpts1 = matches_im1.copy()
+        # view 0
+        desc1_0, desc2_0 = (
+            pred1["desc"][0].squeeze(0).detach(),
+            pred2["desc"][0].squeeze(0).detach(),
+        )
+
+        # find 2D-2D matches between the two images
+        matches_im0_0, matches_im1_0 = fast_reciprocal_NNs(
+            desc1_0,
+            desc2_0,
+            subsample_or_initxy1=2,
+            device=DEVICE,
+            dist="dot",
+            block_size=2 ** 13,
+        )
+        # subsample to get max_kps
+        mkpts0 = torch.cat([matches_im0_0.copy(), matches_im1_1.copy()])[::2]
+        mkpts1 = torch.cat([matches_im1_0.copy(), matches_im0_1.copy()])[::2]
 
         if len(mkpts0) == 0:
             pred = {
