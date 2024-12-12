@@ -1,6 +1,9 @@
 import argparse
+import os
 import pprint
+import signal
 from collections import Counter, defaultdict
+from functools import partial
 from itertools import chain
 from pathlib import Path
 from types import SimpleNamespace
@@ -15,7 +18,7 @@ from tqdm import tqdm
 
 from . import logger, matchers
 from .extract_features import read_image, resize_image
-from .match_features import find_unique_new_pairs
+from .match_features import find_unique_new_pairs, WorkQueue
 from .utils.base_model import dynamic_load
 from .utils.io import list_h5_names
 from .utils.parsers import names_to_pair, parse_retrieval
@@ -261,6 +264,31 @@ class ImagePairDataset(torch.utils.data.Dataset):
             image1, scale1 = self.preprocess(image1)
         return image0, image1, scale0, scale1, name0, name1
 
+def writer_fn(inp, match_path):
+    pair, pred, scale0, scale1 = inp
+    with h5py.File(str(match_path), 'a', libver='latest') as fd:
+        # Rescale keypoints and move to cpu
+        kpts0, kpts1 = pred["keypoints0"], pred["keypoints1"]
+        kpts0 = scale_keypoints(kpts0 + 0.5, scale0) - 0.5
+        kpts1 = scale_keypoints(kpts1 + 0.5, scale1) - 0.5
+        kpts0 = kpts0.cpu().numpy()
+        kpts1 = kpts1.cpu().numpy()
+        if "scores" in pred:
+            scores = pred["scores"].cpu().numpy()
+        else:
+            scores = np.ones((len(kpts1),), dtype=np.float32)
+
+        # Write matches and matching scores in hloc format
+        if pair in fd:
+            del fd[pair]
+        grp = fd.create_group(pair)
+
+        # Write dense matching output
+        grp.create_dataset("keypoints0", data=kpts0)
+        grp.create_dataset("keypoints1", data=kpts1)
+        grp.create_dataset("scores", data=scores)
+
+stop = False  # when importing package
 
 @torch.no_grad()
 def match_dense(
@@ -276,52 +304,37 @@ def match_dense(
 
     dataset = ImagePairDataset(image_dir, conf["preprocessing"], pairs)
     loader = torch.utils.data.DataLoader(
-        dataset, num_workers=16, batch_size=1, shuffle=False
+        dataset, num_workers=4, batch_size=1, shuffle=False
     )
+    writer_queue = WorkQueue(partial(writer_fn, match_path=match_path), 4)
 
     logger.info("Performing dense matching...")
-    with h5py.File(str(match_path), "a") as fd:
-        for data in tqdm(loader, smoothing=0.1):
-            # load image-pair data
-            image0, image1, scale0, scale1, (name0,), (name1,) = data
-            scale0, scale1 = scale0[0].numpy(), scale1[0].numpy()
-            image0, image1 = image0.to(device), image1.to(device)
+    for data in tqdm(loader, smoothing=0.1):
+        # load image-pair data
+        image0, image1, scale0, scale1, (name0,), (name1,) = data
+        scale0, scale1 = scale0[0].numpy(), scale1[0].numpy()
+        image0, image1 = image0.to(device, non_blocking=True), image1.to(device, non_blocking=True)
 
-            # match semi-dense
-            # for consistency with pairs_from_*: refine kpts of image0
-            if name0 in existing_refs:
-                # special case: flip to enable refinement in query image
-                pred = model({"image0": image1, "image1": image0})
-                pred = {
-                    **pred,
-                    "keypoints0": pred["keypoints1"],
-                    "keypoints1": pred["keypoints0"],
-                }
-            else:
-                # usual case
-                pred = model({"image0": image0, "image1": image1})
+        # match semi-dense
+        # for consistency with pairs_from_*: refine kpts of image0
+        if name0 in existing_refs:
+            # special case: flip to enable refinement in query image
+            pred = model({"image0": image1, "image1": image0})
+            pred = {
+                **pred,
+                "keypoints0": pred["keypoints1"],
+                "keypoints1": pred["keypoints0"],
+            }
+        else:
+            # usual case
+            pred = model({"image0": image0, "image1": image1})
 
-            # Rescale keypoints and move to cpu
-            kpts0, kpts1 = pred["keypoints0"], pred["keypoints1"]
-            kpts0 = scale_keypoints(kpts0 + 0.5, scale0) - 0.5
-            kpts1 = scale_keypoints(kpts1 + 0.5, scale1) - 0.5
-            kpts0 = kpts0.cpu().numpy()
-            kpts1 = kpts1.cpu().numpy()
-            if "scores" in pred:
-                scores = pred["scores"].cpu().numpy()
-            else:
-                scores = np.ones((len(kpts1),), dtype=np.float32)
+        pair = names_to_pair(name0, name1)
+        writer_queue.put((pair, pred, scale0, scale1))
+        if stop:
+            break
+    writer_queue.join()
 
-            # Write matches and matching scores in hloc format
-            pair = names_to_pair(name0, name1)
-            if pair in fd:
-                del fd[pair]
-            grp = fd.create_group(pair)
-
-            # Write dense matching output
-            grp.create_dataset("keypoints0", data=kpts0)
-            grp.create_dataset("keypoints1", data=kpts1)
-            grp.create_dataset("scores", data=scores)
     del model, loader
 
 
@@ -524,10 +537,23 @@ def match_and_assign(
     for path in feature_paths_refs:  # e.g. disk
         if not path.exists():
             raise FileNotFoundError(f"Reference feature file {path}.")
+    # if running in a slurm environment, get job id
+    is_slurm = "SLURM_JOB_ID" in os.environ
+    override_match_pairs = overwrite
+    if is_slurm:
+        slurm_id = os.environ["SLURM_JOB_ID"]
+        pairs_cache_path = pairs_path.with_name(f"{slurm_id}_pairs.txt")
+        logger.info(f"Pairs cache path {pairs_cache_path.absolute()}")
+        # if cache pairs file already exists, load that instead
+        if pairs_cache_path.exists():
+            logger.info("Pair cache exists")
+            pairs_path = pairs_cache_path
+            override_match_pairs = True  # skip duplicates checking
+
     pairs = parse_retrieval(pairs_path)
     pairs = [(q, r) for q, rs in pairs.items() for r in rs]
     # pairs = [tuple(line.strip().split(" ")) for line in Path(pairs_path).read_text().strip().split("\n")]
-    pairs_new = find_unique_new_pairs(pairs, None if overwrite else pairwise_match_path)
+    pairs_new = find_unique_new_pairs(pairs, None if override_match_pairs else pairwise_match_path)
     required_queries = set(sum(pairs, ()))  # image list in (new) pairs
 
     name2ref = {
@@ -633,6 +659,16 @@ def main(
 
 
 if __name__ == "__main__":
+    stop = False
+
+    def signal_handler(sig, frame):
+        global stop
+        stop = True
+        logger.info(f'Terminating due to signal {sig}.')
+
+    signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGINT, signal_handler)
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--pairs", type=Path, required=True)
     parser.add_argument("--image_dir", type=Path, required=True)
