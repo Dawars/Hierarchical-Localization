@@ -97,8 +97,8 @@ class Mast3r(Duster):
             block_size=2 ** 13,
         )
         # subsample to get max_kps
-        mkpts0 = torch.cat([matches_im0_0.copy(), matches_im1_1.copy()])[::2]
-        mkpts1 = torch.cat([matches_im1_0.copy(), matches_im0_1.copy()])[::2]
+        mkpts0 = np.concatenate([matches_im0_0.copy(), matches_im1_1.copy()])[::2]
+        mkpts1 = np.concatenate([matches_im1_0.copy(), matches_im0_1.copy()])[::2]
 
         if len(mkpts0) == 0:
             pred = {
