@@ -411,9 +411,20 @@ def aggregate_matches(
     with h5py.File(str(pairwise_match_path), "a") as fd_pairs, h5py.File(str(match_path), "a") as fd:
         for name0, name1 in tqdm(pairs, smoothing=0.1):
             pair = names_to_pair(name0, name1)
-            grp_pairs = fd_pairs[pair]
-            kpts0 = grp_pairs["keypoints0"].__array__()
-            kpts1 = grp_pairs["keypoints1"].__array__()
+            if pair in fd_pairs:
+                grp_pairs = fd_pairs[pair]
+                # print(pair, grp_pairs.keys())
+                kpts0 = grp_pairs["keypoints0"].__array__()
+                kpts1 = grp_pairs["keypoints1"].__array__()
+            else:
+                pair = names_to_pair(name1, name0)
+                if pair in fd_pairs:
+                    grp_pairs = fd_pairs[pair]
+                    # print("reverse", pair, grp_pairs.keys())
+                    kpts0 = grp_pairs["keypoints1"].__array__()
+                    kpts1 = grp_pairs["keypoints0"].__array__()
+                else:
+                    print(f"{pair} and reverse not in matches")
             scores = grp_pairs["scores"].__array__()
 
             # Aggregate local features
