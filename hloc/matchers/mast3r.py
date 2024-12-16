@@ -15,7 +15,7 @@ from .. import logger
 # sys.path.append(str(dust3r_path))
 
 from dust3r.image_pairs import make_pairs
-from dust3r.inference import inference
+from mast3r.inference import inference
 from mast3r.fast_nn import fast_reciprocal_NNs
 from mast3r.model import AsymmetricMASt3R
 
@@ -36,13 +36,13 @@ class Mast3r(Duster):
 
     def _init(self, conf):
         self.normalize = tfm.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-        model_path = self._download_model(
-            repo_id=MODEL_REPO_ID,
-            filename="{}/{}".format(
-                Path(__file__).stem, self.conf["model_name"]
-            ),
-        )
-        self.net = AsymmetricMASt3R.from_pretrained(model_path).to(DEVICE)
+        # model_path = self._download_model(
+        #     repo_id=MODEL_REPO_ID,
+        #     filename="{}/{}".format(
+        #         Path(__file__).stem, self.conf["model_name"]
+        #     ),
+        # )
+        self.net = AsymmetricMASt3R.from_pretrained(self.conf["model_name"]).to(DEVICE)
         logger.info("Loaded Mast3r model")
 
     def _forward(self, data):
@@ -63,8 +63,19 @@ class Mast3r(Duster):
         output = inference(pairs, self.net, DEVICE, batch_size=1, verbose=False)
 
         # at this stage, you have the raw dust3r predictions
-        _, pred1 = output["view1"], output["pred1"]
-        _, pred2 = output["view2"], output["pred2"]
+        dg_pred1, pred1 = output["pred1"], output["pt_pred1"]
+        dg_pred2, pred2 = output["pred2"], output["pt_pred2"]
+
+        score_s1 = torch.nn.functional.softmax(dg_pred1, dim=1).detach().numpy()
+        score_s2 = torch.nn.functional.softmax(dg_pred2, dim=1).detach().numpy()
+        vote_0 = sum(score_s1[:, 0] > score_s1[:, 1]) + sum(score_s2[:, 0] > score_s2[:, 1])
+        vote_1 = sum(score_s1[:, 1] > score_s1[:, 0]) + sum(score_s2[:, 1] > score_s2[:, 0])
+        if vote_1 > vote_0:
+            score = np.max((score_s1[:, 1], score_s2[:, 1]))
+        elif vote_1 < vote_0:
+            score = np.min((score_s1[:, 1], score_s2[:, 1]))
+        else:
+            score = np.mean((score_s1[:, 1], score_s2[:, 1]))
 
         desc1_1, desc2_1 = (
             pred1["desc"][1].squeeze(0).detach(),
@@ -118,5 +129,6 @@ class Mast3r(Duster):
             pred = {
                 "keypoints0": torch.from_numpy(mkpts0),
                 "keypoints1": torch.from_numpy(mkpts1),
+                "scores": torch.from_numpy(np.ones((len(mkpts0),), dtype=np.float32)) * score,
             }
         return pred
