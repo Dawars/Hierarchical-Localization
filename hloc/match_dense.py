@@ -420,11 +420,11 @@ def aggregate_matches(
                 pair = names_to_pair(name1, name0)
                 if pair in fd_pairs:
                     grp_pairs = fd_pairs[pair]
-                    # print("reverse", pair, grp_pairs.keys())
+                    logger.warning(f"Reverse pair found {name0=} {name1=}")
                     kpts0 = grp_pairs["keypoints1"].__array__()
                     kpts1 = grp_pairs["keypoints0"].__array__()
                 else:
-                    print(f"{pair} and reverse not in matches")
+                    logger.error(f"Pair not found {name0=} {name1=}")
             scores = grp_pairs["scores"].__array__()
 
             # Aggregate local features
