@@ -463,8 +463,11 @@ def aggregate_matches(
             matches0, scores0 = kpids_to_matches0(mkp_ids0, mkp_ids1, scores)
 
             assert kpts0.shape[0] == scores.shape[0]
+            if pair in fd:
+                logger.info(f"{name0} {name1} {fd[pair].keys()=}")
+                del fd[pair]
             grp = fd.create_group(pair)  # output matches
-            grp.create_dataset("matches0", data=matches0)  # what if rerunning? needs to delete first?
+            grp.create_dataset("matches0", data=matches0)
             grp.create_dataset("matching_scores0", data=scores0)
 
             # Convert bins to kps if finished, and store them
@@ -563,7 +566,6 @@ def match_and_assign(
 
     pairs = parse_retrieval(pairs_path)
     pairs = [(q, r) for q, rs in pairs.items() for r in rs]
-    # pairs = [tuple(line.strip().split(" ")) for line in Path(pairs_path).read_text().strip().split("\n")]
     pairs_new = find_unique_new_pairs(pairs, None if override_match_pairs else pairwise_match_path)
     required_queries = set(sum(pairs, ()))  # image list in (new) pairs
 
@@ -632,7 +634,8 @@ def main(
         "Extracting semi-dense features with configuration:" f"\n{pprint.pformat(conf)}"
     )
 
-    assert not matches.exists()
+    if matches.exists():
+        logger.warning(f"Matches file already exists: {str(matches)}")
 
     if features is None:
         features = "feats_"
