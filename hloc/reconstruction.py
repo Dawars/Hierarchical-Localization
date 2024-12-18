@@ -65,7 +65,7 @@ def run_reconstruction(sfm_dir: Path,
     with OutputCapture(verbose):
         with pycolmap.ostream():
             reconstructions = pycolmap.incremental_mapping(
-                database_path, image_dir, models_path, options=options, input_path)
+                database_path, image_dir, models_path, options=options, input_path=input_path)
 
     if len(reconstructions) == 0:
         logger.error('Could not reconstruct any model!')
