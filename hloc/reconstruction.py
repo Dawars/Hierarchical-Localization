@@ -54,6 +54,7 @@ def run_reconstruction(sfm_dir: Path,
                        image_dir: Path,
                        verbose: bool = False,
                        options: Optional[Dict[str, Any]] = None,
+                       input_path: Optional[Path] = None,
                        ) -> pycolmap.Reconstruction:
     models_path = sfm_dir / 'models'
     models_path.mkdir(exist_ok=True, parents=True)
@@ -64,7 +65,7 @@ def run_reconstruction(sfm_dir: Path,
     with OutputCapture(verbose):
         with pycolmap.ostream():
             reconstructions = pycolmap.incremental_mapping(
-                database_path, image_dir, models_path, options=options)
+                database_path, image_dir, models_path, options=options, input_path)
 
     if len(reconstructions) == 0:
         logger.error('Could not reconstruct any model!')
@@ -105,6 +106,7 @@ def main(sfm_dir: Path,
          do_import_images: bool = True,
          do_import_features: bool = True,
          do_import_matches: bool = True,
+         input_path: Optional[Path] = None,
          ) -> pycolmap.Reconstruction:
 
     assert features.exists(), features
@@ -130,7 +132,7 @@ def main(sfm_dir: Path,
     if not skip_geometric_verification:
         estimation_and_geometric_verification(database, pairs, verbose)
     reconstruction = run_reconstruction(
-        sfm_dir, database, image_dir, verbose, pipeline_options)
+        sfm_dir, database, image_dir, verbose, pipeline_options, input_path)
     if reconstruction is not None:
         logger.info(f'Reconstruction statistics:\n{reconstruction.summary()}'
                     + f'\n\tnum_input_images = {len(image_ids)}')
@@ -155,6 +157,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--pairs', type=Path, required=True)
     parser.add_argument('--features', type=Path, required=True)
+    parser.add_argument('--input_path', type=Path, required=False)
     parser.add_argument('--matches', type=Path, required=True)
     parser.add_argument('--do_import_images', type=str2bool, nargs='?', const=True, default=True)
     parser.add_argument('--do_import_features', type=str2bool, nargs='?', const=True, default=True)
