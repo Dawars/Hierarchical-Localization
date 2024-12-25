@@ -317,17 +317,18 @@ def match_dense(
 
         # match semi-dense
         # for consistency with pairs_from_*: refine kpts of image0
-        if name0 in existing_refs:
-            # special case: flip to enable refinement in query image
-            pred = model({"image0": image1, "image1": image0})
-            pred = {
-                **pred,
-                "keypoints0": pred["keypoints1"],
-                "keypoints1": pred["keypoints0"],
-            }
-        else:
-            # usual case
-            pred = model({"image0": image0, "image1": image1})
+        # if name0 in existing_refs:
+        #     logger.info(f"{name0} is already present. Special case")
+        #     # special case: flip to enable refinement in query image
+        #     pred = model({"image0": image1, "image1": image0})
+        #     pred = {
+        #         **pred,
+        #         "keypoints0": pred["keypoints1"],
+        #         "keypoints1": pred["keypoints0"],
+        #     }
+        # else:
+        # usual case
+        pred = model({"image0": image0, "image1": image1})
 
         pair = names_to_pair(name0, name1)
         writer_queue.put((pair, pred, scale0, scale1))
@@ -411,20 +412,9 @@ def aggregate_matches(
     with h5py.File(str(pairwise_match_path), "a") as fd_pairs, h5py.File(str(match_path), "a") as fd:
         for name0, name1 in tqdm(pairs, smoothing=0.1):
             pair = names_to_pair(name0, name1)
-            if pair in fd_pairs:
-                grp_pairs = fd_pairs[pair]
-                # print(pair, grp_pairs.keys())
-                kpts0 = grp_pairs["keypoints0"].__array__()
-                kpts1 = grp_pairs["keypoints1"].__array__()
-            else:
-                pair = names_to_pair(name1, name0)
-                if pair in fd_pairs:
-                    grp_pairs = fd_pairs[pair]
-                    logger.warning(f"Reverse pair found {name0=} {name1=}")
-                    kpts0 = grp_pairs["keypoints1"].__array__()
-                    kpts1 = grp_pairs["keypoints0"].__array__()
-                else:
-                    logger.error(f"Pair not found {name0=} {name1=}")
+            grp_pairs = fd_pairs[pair]
+            kpts0 = grp_pairs["keypoints0"].__array__()
+            kpts1 = grp_pairs["keypoints1"].__array__()
             scores = grp_pairs["scores"].__array__()
 
             # Aggregate local features
@@ -463,9 +453,6 @@ def aggregate_matches(
             matches0, scores0 = kpids_to_matches0(mkp_ids0, mkp_ids1, scores)
 
             assert kpts0.shape[0] == scores.shape[0]
-            if pair in fd:
-                logger.info(f"{name0} {name1} {fd[pair].keys()=}")
-                del fd[pair]
             grp = fd.create_group(pair)  # output matches
             grp.create_dataset("matches0", data=matches0)
             grp.create_dataset("matching_scores0", data=scores0)
@@ -566,8 +553,9 @@ def match_and_assign(
 
     pairs = parse_retrieval(pairs_path)
     pairs = [(q, r) for q, rs in pairs.items() for r in rs]
-    pairs_new = find_unique_new_pairs(pairs, None if override_match_pairs else pairwise_match_path)
-    required_queries = set(sum(pairs, ()))  # image list in (new) pairs
+    pairs = find_unique_new_pairs(pairs, None)  # dedup
+    pairs_new = find_unique_new_pairs(pairs, None if override_match_pairs else pairwise_match_path)  # override by cache
+    required_queries = set(sum(pairs, ()))  # image list in pairs
 
     name2ref = {
         n: i for i, p in enumerate(feature_paths_refs) for n in list_h5_names(p)
