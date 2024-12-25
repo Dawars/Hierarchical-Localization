@@ -157,7 +157,7 @@ def estimation_and_geometric_verification(
             pycolmap.verify_matches(
                 database_path,
                 pairs_path,
-                options=dict(ransac=dict(max_num_trials=20000, min_inlier_ratio=0.1)),
+                options=dict(min_num_inliers=100, ransac=dict(max_num_trials=20000, min_inlier_ratio=0.1, confidence=0.9999)),
             )
 
 
