@@ -96,11 +96,10 @@ class Mast3r(Duster):
             dist="dot",
             block_size=2 ** 13,
         )
-        # subsample to get max_kps
-        mkpts0 = np.concatenate([matches_im0_0.copy(), matches_im1_1.copy()])[::2]
-        mkpts1 = np.concatenate([matches_im1_0.copy(), matches_im0_1.copy()])[::2]
+        mkpts0 = np.concatenate([matches_im1_0.copy(), matches_im0_1.copy()])
+        mkpts1 = np.concatenate([matches_im0_0.copy(), matches_im1_1.copy()])
 
-        if len(mkpts0) == 0:
+        if len(mkpts0) < 100:
             pred = {
                 "keypoints0": torch.zeros([0, 2]),
                 "keypoints1": torch.zeros([0, 2]),
