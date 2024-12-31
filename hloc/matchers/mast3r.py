@@ -104,7 +104,7 @@ class Mast3r(Duster):
                 "keypoints0": torch.zeros([0, 2]),
                 "keypoints1": torch.zeros([0, 2]),
             }
-            logger.warning(f"Matched {0} points")
+            logger.warning(f"Matched {len(mkpts0)} points, ignoring match")
         else:
 
             top_k = self.conf["max_keypoints"]
