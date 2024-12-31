@@ -22,6 +22,8 @@ def get_gps_pos(image_path: Path) -> Tuple[float, float, float]:
             return 0, 0, 0
     lat = float(metadata["gps_lat"][0])
     long = float(metadata["gps_lng"][0])
+    if lat == 0.0 and long == 0.0:
+        return 0, 0, 0
 
     # print(lat, long)
     alt = 0
@@ -43,7 +45,7 @@ def main(output,
     ref_alt = 0
     image_list = image_list.read_text().strip().split("\n")
     image_ids = []
-    for i, image_id in enumerate(image_list[:100]):  # Todo debug
+    for i, image_id in enumerate(image_list[:]):  # Todo debug
         lat, long, alt = get_gps_pos(image_dir / image_id)
         if ref_lat is None:
             ref_lat = lat
