@@ -211,7 +211,7 @@ class ImagePairDataset(torch.utils.data.Dataset):
         self.conf = conf = SimpleNamespace(**{**self.default_conf, **conf})
         self.pairs = pairs
         if self.conf.cache_images:
-            image_names = set(sum(pairs, ()))  # unique image names in pairs
+            image_names = set(chain.from_iterable(pairs))  # unique image names in pairs
             logger.info(f"Loading and caching {len(image_names)} unique images.")
             self.images = {}
             self.scales = {}
@@ -394,7 +394,7 @@ def aggregate_matches(
     bindict: Dict[str, List[Counter]] = defaultdict(list),
 ):
     if required_queries is None:
-        required_queries = set(sum(pairs, ()))
+        required_queries = set(chain.from_iterable(pairs))
         # default: do not overwrite existing features in feature_path!
         required_queries -= set(list_h5_names(feature_path))
 
@@ -501,7 +501,7 @@ def assign_matches(
 ):
     if isinstance(keypoints, list):
         keypoints = load_keypoints({}, keypoints, kpts_as_bin=set([]))
-    assert len(set(sum(pairs, ())) - set(keypoints.keys())) == 0
+    assert len(set(chain.from_iterable(pairs)) - set(keypoints.keys())) == 0
     with h5py.File(str(pairwise_match_path), "a") as fd_pairs, h5py.File(str(match_path), "a") as fd:
         for name0, name1 in tqdm(pairs):
             pair = names_to_pair(name0, name1)
@@ -555,7 +555,7 @@ def match_and_assign(
     pairs = [(q, r) for q, rs in pairs.items() for r in rs]
     pairs = find_unique_new_pairs(pairs, None)  # dedup
     pairs_new = find_unique_new_pairs(pairs, None if override_match_pairs else pairwise_match_path)  # override by cache
-    required_queries = set(sum(pairs, ()))  # image list in pairs
+    required_queries = set(chain.from_iterable(pairs))  # image list in pairs
 
     name2ref = {
         n: i for i, p in enumerate(feature_paths_refs) for n in list_h5_names(p)
