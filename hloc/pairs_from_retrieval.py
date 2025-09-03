@@ -81,6 +81,7 @@ def main(
     db_list=None,
     db_model=None,
     db_descriptors=None,
+    min_score=None,
 ):
     logger.info("Extracting image pairs from a retrieval database.")
 
@@ -110,7 +111,7 @@ def main(
 
     # Avoid self-matching
     self = np.array(query_names)[:, None] == np.array(db_names)[None]
-    pairs = pairs_from_score_matrix(sim, self, num_matched, min_score=0)
+    pairs = pairs_from_score_matrix(sim, self, num_matched, min_score=min_score)
     pairs = [(query_names[i], db_names[j]) for i, j in pairs]
 
     logger.info(f"Found {len(pairs)} pairs.")
@@ -129,5 +130,6 @@ if __name__ == "__main__":
     parser.add_argument("--db_list", type=Path)
     parser.add_argument("--db_model", type=Path)
     parser.add_argument("--db_descriptors", type=Path)
+    parser.add_argument("--min_score", type=float, default=0)
     args = parser.parse_args()
     main(**args.__dict__)
