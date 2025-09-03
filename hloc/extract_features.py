@@ -128,7 +128,7 @@ confs = {
         },
     },
     "disk_10k": {
-        "output": "feats-disk",
+        "output": "feats-disk-10k",
         "model": {
             "name": "disk",
             "max_keypoints": 10_000,
