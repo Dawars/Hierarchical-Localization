@@ -160,6 +160,9 @@ def main(
     image_list: Optional[List[str]] = None,
     image_options: Optional[Dict[str, Any]] = None,
     pipeline_options: Optional[Dict[str, Any]] = None,
+    do_import_images: bool = True,
+    do_import_features: bool = True,
+    do_import_matches: bool = True,
     input_path: Optional[Path] = None,
 ) -> pycolmap.Reconstruction:
     assert features.exists(), features
@@ -167,23 +170,23 @@ def main(
     assert matches.exists(), matches
 
     sfm_dir.mkdir(parents=True, exist_ok=True)
-    database = sfm_dir / "database.db"
-
     logger.info(f"Writing COLMAP logs to {sfm_dir / 'colmap.LOG.*'}")
     pycolmap.logging.set_log_destination(pycolmap.logging.INFO, sfm_dir / "colmap.LOG.")
+    database = sfm_dir / 'database.db'
+    if database.exists():
+        logger.info('The database already exists. Skipping import.')
+        image_ids = get_image_ids(database)
+    else:
+        create_empty_db(database)
 
-    create_empty_db(database)
-    import_images(image_dir, database, camera_mode, image_list, image_options)
-    image_ids = get_image_ids(database)
-    import_features(image_ids, database, features)
-    import_matches(
-        image_ids,
-        database,
-        pairs,
-        matches,
-        min_match_score,
-        skip_geometric_verification,
-    )
+    if do_import_images:
+        import_images(image_dir, database, camera_mode, image_list, image_options)
+        image_ids = get_image_ids(database)
+    if do_import_features:
+        import_features(image_ids, database, features)
+    if do_import_matches:
+        import_matches(image_ids, database, pairs, matches,
+                       min_match_score, skip_geometric_verification)
     if not skip_geometric_verification:
         estimation_and_geometric_verification(database, pairs, verbose)
     reconstruction = run_reconstruction(
@@ -196,6 +199,16 @@ def main(
         )
     return reconstruction
 
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -206,6 +219,10 @@ if __name__ == "__main__":
     parser.add_argument("--features", type=Path, required=True)
     parser.add_argument("--matches", type=Path, required=True)
     parser.add_argument('--input_path', type=Path, required=False)
+
+    parser.add_argument('--do_import_images', type=str2bool, nargs='?', const=True, default=True)
+    parser.add_argument('--do_import_features', type=str2bool, nargs='?', const=True, default=True)
+    parser.add_argument('--do_import_matches', type=str2bool, nargs='?', const=True, default=True)
 
     parser.add_argument(
         "--camera_mode",
