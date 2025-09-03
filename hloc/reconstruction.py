@@ -66,6 +66,7 @@ def incremental_mapping(
     image_dir: Path,
     sfm_path: Path,
     options: Optional[Dict[str, Any]] = None,
+    input_path: Optional[Path] = None,
 ) -> dict[int, pycolmap.Reconstruction]:
     num_images = pycolmap.Database(database_path).num_images
     pbars = []
@@ -90,6 +91,7 @@ def incremental_mapping(
         options=options or {},
         initial_image_pair_callback=restart_progress_bar,
         next_image_callback=lambda: pbars[-1].update(1),
+        input_path=input_path,
     )
 
     return reconstructions
@@ -101,6 +103,7 @@ def run_reconstruction(
     image_dir: Path,
     verbose: bool = False,
     options: Optional[Dict[str, Any]] = None,
+    input_path: Optional[Path] = None,
 ) -> pycolmap.Reconstruction:
     models_path = sfm_dir / "models"
     models_path.mkdir(exist_ok=True, parents=True)
@@ -111,7 +114,7 @@ def run_reconstruction(
 
     with OutputCapture(verbose):
         reconstructions = incremental_mapping(
-            database_path, image_dir, models_path, options=options
+            database_path, image_dir, models_path, options=options, input_path=input_path
         )
 
     if len(reconstructions) == 0:
@@ -156,7 +159,8 @@ def main(
     min_match_score: Optional[float] = None,
     image_list: Optional[List[str]] = None,
     image_options: Optional[Dict[str, Any]] = None,
-    mapper_options: Optional[Dict[str, Any]] = None,
+    pipeline_options: Optional[Dict[str, Any]] = None,
+    input_path: Optional[Path] = None,
 ) -> pycolmap.Reconstruction:
     assert features.exists(), features
     assert pairs.exists(), pairs
@@ -183,7 +187,7 @@ def main(
     if not skip_geometric_verification:
         estimation_and_geometric_verification(database, pairs, verbose)
     reconstruction = run_reconstruction(
-        sfm_dir, database, image_dir, verbose, mapper_options
+        sfm_dir, database, image_dir, verbose, pipeline_options, input_path,
     )
     if reconstruction is not None:
         logger.info(
@@ -201,6 +205,7 @@ if __name__ == "__main__":
     parser.add_argument("--pairs", type=Path, required=True)
     parser.add_argument("--features", type=Path, required=True)
     parser.add_argument("--matches", type=Path, required=True)
+    parser.add_argument('--input_path', type=Path, required=False)
 
     parser.add_argument(
         "--camera_mode",
@@ -212,20 +217,18 @@ if __name__ == "__main__":
     parser.add_argument("--min_match_score", type=float)
     parser.add_argument("--verbose", action="store_true")
 
-    parser.add_argument(
-        "--image_options",
-        nargs="+",
-        default=[],
-        help="List of key=value from {}".format(pycolmap.ImageReaderOptions().todict()),
-    )
-    parser.add_argument(
-        "--mapper_options",
-        nargs="+",
-        default=[],
-        help="List of key=value from {}".format(
-            pycolmap.IncrementalMapperOptions().todict()
-        ),
-    )
+    parser.add_argument('--image_options', nargs='+', default=[],
+                        help='List of key=value from {}'.format(
+                            pycolmap.ImageReaderOptions().todict()))
+    parser.add_argument('--pipeline_options', nargs='+', default=[],
+                        help='List of key=value from {}'.format(
+                            pycolmap.IncrementalPipelineOptions().todict()))
+    parser.add_argument('--mapper_options', nargs='+', default=[],
+                        help='List of key=value from {}'.format(
+                            pycolmap.IncrementalMapperOptions().todict()))
+    parser.add_argument('--triangulator_options', nargs='+', default=[],
+                        help='List of key=value from {}'.format(
+                            pycolmap.IncrementalTriangulatorOptions().todict()))
     args = parser.parse_args().__dict__
 
     image_options = parse_option_args(
@@ -234,5 +237,13 @@ if __name__ == "__main__":
     mapper_options = parse_option_args(
         args.pop("mapper_options"), pycolmap.IncrementalMapperOptions()
     )
+    pipeline_options = parse_option_args(
+        args.pop("pipeline_options"), pycolmap.IncrementalPipelineOptions()
+    )
+    triangulator_options = parse_option_args(
+        args.pop("triangulator_options"), pycolmap.IncrementalTriangulatorOptions()
+    )
+    pipeline_options["mapper"] = mapper_options
+    pipeline_options["triangulation"] = triangulator_options
 
-    main(**args, image_options=image_options, mapper_options=mapper_options)
+    main(**args, image_options=image_options, pipeline_options=pipeline_options)
