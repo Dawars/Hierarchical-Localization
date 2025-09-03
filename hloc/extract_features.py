@@ -327,7 +327,8 @@ def main(
                 valid_keypoint = mask[pred['keypoints'][:, 1].astype('int'), pred['keypoints'][:, 0].astype('int')]
                 pred['keypoints'] = pred['keypoints'][valid_keypoint > 0]
                 pred['descriptors'] = pred['descriptors'][:, valid_keypoint > 0]
-                pred['keypoint_scores'] = pred['keypoint_scores'][valid_keypoint > 0]
+                if 'keypoint_scores' in pred:
+                    pred['keypoint_scores'] = pred['keypoint_scores'][valid_keypoint > 0]
         if as_half:
             for k in pred:
                 dt = pred[k].dtype
