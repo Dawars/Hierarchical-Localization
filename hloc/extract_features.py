@@ -53,6 +53,19 @@ confs = {
             "resize_force": True,
         },
     },
+    "superpoint_10k": {
+        "output": "feats-superpoint-10k",
+        "model": {
+            "name": "superpoint",
+            "nms_radius": 3,
+            "max_keypoints": 10_000,
+        },
+        "preprocessing": {
+            "grayscale": True,
+            "resize_max": 1600,
+            "resize_force": True,
+        },
+    },
     "superpoint_inloc": {
         "output": "feats-superpoint-n4096-r1600",
         "model": {
@@ -108,6 +121,28 @@ confs = {
         "model": {
             "name": "disk",
             "max_keypoints": 5000,
+        },
+        "preprocessing": {
+            "grayscale": False,
+            "resize_max": 1600,
+        },
+    },
+    "disk_10k": {
+        "output": "feats-disk",
+        "model": {
+            "name": "disk",
+            "max_keypoints": 10_000,
+        },
+        "preprocessing": {
+            "grayscale": False,
+            "resize_max": 1600,
+        },
+    },
+    "disk_unlimited": {
+        "output": "feats-disk",
+        "model": {
+            "name": "disk",
+            "max_keypoints": None,
         },
         "preprocessing": {
             "grayscale": False,
