@@ -13,14 +13,12 @@ class ALIKED(BaseModel):
     required_inputs = ["image"]
 
     def _init(self, conf):
-        conf.pop("name")
-        self.model = ALIKED_(**conf)
+        self.model = ALIKED_(max_num_keypoints=self.conf["max_keypoints"]).eval().cuda()
 
     def _forward(self, data):
         features = self.model(data)
-
         return {
-            "keypoints": [f for f in features["keypoints"]],
-            "keypoint_scores": [f for f in features["keypoint_scores"]],
-            "descriptors": [f.t() for f in features["descriptors"]],
+            "keypoints": [f.keypoints for f in features],
+            "keypoint_scores": [f.detection_scores for f in features],
+            "descriptors": [f.descriptors.t() for f in features],
         }

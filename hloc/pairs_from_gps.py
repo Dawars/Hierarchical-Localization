@@ -13,12 +13,16 @@ def get_gps_pos(image_path: Path) -> Tuple[float, float, float]:
     metadata = json.loads(image_path.with_suffix(".json").read_text())
     name = image_path.with_suffix(".json").name
     if "gps_lat" not in metadata:
-        print(image_path)
-        gps_path = Path("/Users/dawars/datasets/fortepan_gps") / name
+        gps_path = Path("/vast/ro38seb/datasets/fortepan_gps") / name
         if gps_path.exists():  # manual (llm+geocoding) gps fallback
             metadata = json.loads((gps_path).read_text())
 
+            if "gps_lat" not in metadata:
+                print("no gps", gps_path)
+            # else:
+            #     print("gps", gps_path)
         if "gps_lat" not in metadata:  # if still no gps return 0
+            # print(image_path)
             return 0, 0, 0
     lat = float(metadata["gps_lat"][0])
     long = float(metadata["gps_lng"][0])
@@ -43,7 +47,7 @@ def main(output,
     ref_alt = 0
     image_list = image_list.read_text().strip().split("\n")
     image_ids = []
-    for i, image_id in enumerate(image_list[:100]):  # Todo debug
+    for i, image_id in enumerate(image_list):
         lat, long, alt = get_gps_pos(image_dir / image_id)
         if ref_lat is None:
             ref_lat = lat
@@ -72,8 +76,8 @@ def main(output,
     for i in pbar:
         if not zeros_mask[i]:  # skip invalid location
             continue
-        dist, closest_pos = torch.topk(pos_dist[i], closest_geo + 1, largest=False)  # closest 500
-        mask = dist < 500  # 500m radius
+        dist, closest_pos = torch.topk(pos_dist[i], closest_geo + 1, largest=False)  # closest 1000
+        mask = dist < 500  # 1km / 500m radius
         total_pairs += mask.sum()
         pbar.set_postfix({'pairs': mask.sum(), "total": total_pairs})
         # print(ts[i], dist[mask])
