@@ -91,7 +91,7 @@ def incremental_mapping(
         options=options or {},
         initial_image_pair_callback=restart_progress_bar,
         next_image_callback=lambda: pbars[-1].update(1),
-        input_path=input_path,
+        # input_path=input_path,
     )
 
     return reconstructions
