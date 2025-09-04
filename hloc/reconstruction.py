@@ -180,7 +180,15 @@ def main(
         create_empty_db(database)
 
     if do_import_images:
-        import_images(image_dir, database, camera_mode, image_list, image_options)
+        if image_list:
+            image_list_shared = [image_name for image_name in image_list if image_name.split("/")[0] != "others"]
+            image_list_individual = [image_name for image_name in image_list if image_name.split("/")[0] == "others"]
+            import_images(image_dir, database, camera_mode, image_list_shared, image_options)
+            # import images from "others" folder with individual camera params
+            import_images(image_dir, database, pycolmap.CameraMode.PER_IMAGE, image_list_individual, image_options)
+        else:
+            import_images(image_dir, database, camera_mode, image_list, image_options)
+
         image_ids = get_image_ids(database)
     if do_import_features:
         import_features(image_ids, database, features)
@@ -214,6 +222,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--sfm_dir", type=Path, required=True)
     parser.add_argument("--image_dir", type=Path, required=True)
+    parser.add_argument("--image_list", type=Path, required=True)
 
     parser.add_argument("--pairs", type=Path, required=True)
     parser.add_argument("--features", type=Path, required=True)
@@ -263,4 +272,6 @@ if __name__ == "__main__":
     pipeline_options["mapper"] = mapper_options
     pipeline_options["triangulation"] = triangulator_options
 
-    main(**args, image_options=image_options, pipeline_options=pipeline_options)
+    image_list_path = args.pop("image_list")
+    image_list = image_list_path.read_text().rstrip().split("\n") if image_list_path else None
+    main(**args, image_list=image_list, image_options=image_options, pipeline_options=pipeline_options)
