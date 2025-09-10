@@ -139,7 +139,7 @@ confs = {
         },
     },
     "disk_unlimited": {
-        "output": "feats-disk",
+        "output": "feats-disk-unlimited",
         "model": {
             "name": "disk",
             "max_keypoints": None,
