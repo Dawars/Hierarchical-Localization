@@ -1,16 +1,15 @@
 import argparse
-import collections.abc as collections
 from pathlib import Path
 from typing import Optional
-
 import h5py
 import numpy as np
 import torch
+import collections.abc as collections
 
 from . import logger
-from .utils.io import list_h5_names
 from .utils.parsers import parse_image_lists
 from .utils.read_write_model import read_images_binary
+from .utils.io import list_h5_names
 
 
 def parse_names(prefix, names, names_all):
@@ -19,17 +18,16 @@ def parse_names(prefix, names, names_all):
             prefix = tuple(prefix)
         names = [n for n in names_all if n.startswith(prefix)]
         if len(names) == 0:
-            raise ValueError(f"Could not find any image with the prefix `{prefix}`.")
+            raise ValueError(
+                f"Could not find any image with the prefix `{prefix}`.")
     elif names is not None:
         if isinstance(names, (str, Path)):
             names = parse_image_lists(names)
         elif isinstance(names, collections.Iterable):
             names = list(names)
         else:
-            raise ValueError(
-                f"Unknown type of image list: {names}."
-                "Provide either a list or a path to a list file."
-            )
+            raise ValueError(f"Unknown type of image list: {names}."
+                             "Provide either a list or a path to a list file.")
     else:
         names = names_all
     return names
@@ -47,12 +45,10 @@ def get_descriptors(names, path, name2idx=None, key="global_descriptor"):
     return torch.from_numpy(np.stack(desc, 0)).float()
 
 
-def pairs_from_score_matrix(
-    scores: torch.Tensor,
-    invalid: np.array,
-    num_select: int,
-    min_score: Optional[float] = None,
-):
+def pairs_from_score_matrix(scores: torch.Tensor,
+                            invalid: np.array,
+                            num_select: int,
+                            min_score: Optional[float] = None):
     assert scores.shape == invalid.shape
     if isinstance(scores, np.ndarray):
         scores = torch.from_numpy(scores)
@@ -71,18 +67,10 @@ def pairs_from_score_matrix(
     return pairs
 
 
-def main(
-    descriptors,
-    output,
-    num_matched,
-    query_prefix=None,
-    query_list=None,
-    db_prefix=None,
-    db_list=None,
-    db_model=None,
-    db_descriptors=None,
-    min_score=None,
-):
+def main(descriptors: Path, output: Path, num_matched: int,
+         query_prefix=None, query_list=None,
+         db_prefix=None, db_list=None, db_model=None, db_descriptors=None,
+         chunk_size: int = -1, min_score: float=0):
     logger.info("Extracting image pairs from a retrieval database.")
 
     # We handle multiple reference feature files.
@@ -91,7 +79,8 @@ def main(
         db_descriptors = descriptors
     if isinstance(db_descriptors, (Path, str)):
         db_descriptors = [db_descriptors]
-    name2db = {n: i for i, p in enumerate(db_descriptors) for n in list_h5_names(p)}
+    name2db = {n: i for i, p in enumerate(db_descriptors)
+               for n in list_h5_names(p)}
     db_names_h5 = list(name2db.keys())
     query_names_h5 = list_h5_names(descriptors)
 
@@ -106,17 +95,27 @@ def main(
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     db_desc = get_descriptors(db_names, db_descriptors, name2db)
+    db_desc = db_desc.to(device)
     query_desc = get_descriptors(query_names, descriptors)
-    sim = torch.einsum("id,jd->ij", query_desc.to(device), db_desc.to(device))
 
-    # Avoid self-matching
-    self = np.array(query_names)[:, None] == np.array(db_names)[None]
-    pairs = pairs_from_score_matrix(sim, self, num_matched, min_score=min_score)
-    pairs = [(query_names[i], db_names[j]) for i, j in pairs]
+    num_pairs = 0
+    chunk_size = chunk_size if chunk_size > 0 else len(query_names)
+    with output.open("w") as f:
+        query_name_splits = [query_names[i:i + chunk_size] for i in range(0, len(query_names), chunk_size)]
+        query_splits = torch.split(query_desc, chunk_size)
+        for i, (names, query_desc_split) in enumerate(zip(query_name_splits, query_splits)):
+            if i != 0:
+                f.write("\n")
+            sim = torch.einsum("id,jd->ij", query_desc_split.to(device), db_desc)
 
-    logger.info(f"Found {len(pairs)} pairs.")
-    with open(output, "w") as f:
-        f.write("\n".join(" ".join([i, j]) for i, j in pairs))
+            # Avoid self-matching
+            self = np.array(names)[:, None] == np.array(db_names)[None]
+            pairs = pairs_from_score_matrix(sim, self, num_matched, min_score=min_score)
+            pairs = [(names[i], db_names[j]) for i, j in pairs]
+            num_pairs += len(pairs)
+            f.write("\n".join(" ".join([i, j]) for i, j in pairs))
+
+    logger.info(f"Found {num_pairs} pairs.")
 
 
 if __name__ == "__main__":
@@ -130,6 +129,7 @@ if __name__ == "__main__":
     parser.add_argument("--db_list", type=Path)
     parser.add_argument("--db_model", type=Path)
     parser.add_argument("--db_descriptors", type=Path)
+    parser.add_argument("--chunk_size", type=int, default=-1)
     parser.add_argument("--min_score", type=float, default=0)
     args = parser.parse_args()
     main(**args.__dict__)
