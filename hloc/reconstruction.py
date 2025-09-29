@@ -181,7 +181,8 @@ def main(
             image_list_individual = [image_name for image_name in image_list if image_name.split("/")[0] == "others"]
             import_images(image_dir, database, camera_mode, image_list_shared, image_options)
             # import images from "others" folder with individual camera params
-            import_images(image_dir, database, pycolmap.CameraMode.PER_IMAGE, image_list_individual, image_options)
+            if len(image_list_individual) > 0:
+                import_images(image_dir, database, pycolmap.CameraMode.PER_IMAGE, image_list_individual, image_options)
         else:
             import_images(image_dir, database, camera_mode, image_list, image_options)
 
