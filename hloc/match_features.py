@@ -1,3 +1,5 @@
+import os
+import signal
 import argparse
 import pprint
 from functools import partial
@@ -190,6 +192,7 @@ def find_unique_new_pairs(pairs_all: List[Tuple[str]], match_path: Path = None):
         if (j, i) not in pairs:
             pairs.add((i, j))
     pairs = list(pairs)
+    logger.info('find_unique_new_pairs dedup start.')
     if match_path is not None and match_path.exists():
         with h5py.File(str(match_path), "r", libver="latest") as fd:
             pairs_filtered = []
@@ -202,9 +205,12 @@ def find_unique_new_pairs(pairs_all: List[Tuple[str]], match_path: Path = None):
                 ):
                     continue
                 pairs_filtered.append((i, j))
+        logger.info('find_unique_new_pairs finish.')
         return pairs_filtered
+    logger.info('find_unique_new_pairs finished without iteration.')
     return pairs
 
+stop = False  # when importing package
 
 @torch.no_grad()
 def match_from_paths(
@@ -226,11 +232,24 @@ def match_from_paths(
     match_path.parent.mkdir(exist_ok=True, parents=True)
 
     assert pairs_path.exists(), pairs_path
+
+    # if running in a slurm environment, get job id
+    is_slurm = "SLURM_JOB_ID" in os.environ
+    if is_slurm:
+        slurm_id = os.environ["SLURM_JOB_ID"]
+        pairs_cache_path = pairs_path.with_name(f"{slurm_id}_pairs.txt")
+        logger.info(f"Pairs cache path {pairs_cache_path.absolute()}")
+        # if cache pairs file already exists, load that instead
+        if pairs_cache_path.exists():
+            logger.info("Pair cache exists")
+            pairs_path = pairs_cache_path
+            overwrite = True  # skip duplicates checking
+
     pairs = parse_retrieval(pairs_path)
     pairs = [(q, r) for q, rs in pairs.items() for r in rs]
     pairs = find_unique_new_pairs(pairs, None if overwrite else match_path)
     if len(pairs) == 0:
-        logger.info("Skipping the matching.")
+        logger.info('Skipping the matching.')
         return
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -243,6 +262,7 @@ def match_from_paths(
     )
     writer_queue = WorkQueue(partial(writer_fn, match_path=match_path), 5)
 
+    logger.info(f'Starting matching loop {stop}')
     for idx, data in enumerate(tqdm(loader, smoothing=0.1)):
         data = {
             k: v if k.startswith("image") else v.to(device, non_blocking=True)
@@ -251,11 +271,28 @@ def match_from_paths(
         pred = model(data)
         pair = names_to_pair(*pairs[idx])
         writer_queue.put((pair, pred))
+        if stop:
+            break
     writer_queue.join()
-    logger.info("Finished exporting matches.")
+
+    if is_slurm:
+        logger.info(f'Started writing pairs cache from {idx}')
+        pairs_cache_path.write_text("\n".join(" ".join([i, j]) for i, j in dataset.pairs[idx + 1:]))
+        logger.info('Finished writing pairs cache')
+    logger.info('Finished exporting matches.')
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
+    stop = False
+
+    def signal_handler(sig, frame):
+        global stop
+        stop = True
+        logger.info(f'Terminating due to signal {sig}.')
+
+    signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGINT, signal_handler)
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--pairs", type=Path, required=True)
     parser.add_argument("--export_dir", type=Path)
