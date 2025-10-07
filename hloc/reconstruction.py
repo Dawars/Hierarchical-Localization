@@ -3,6 +3,7 @@ import multiprocessing
 import shutil
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from itertools import chain
 
 import pycolmap
 import tqdm
