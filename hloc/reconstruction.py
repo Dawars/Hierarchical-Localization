@@ -271,7 +271,7 @@ if __name__ == "__main__":
     pipeline_options["mapper"] = mapper_options
     pipeline_options["triangulation"] = triangulator_options
 
-    with open(str(args.pairs), "r") as f:
+    with open(str(args["pairs"]), "r") as f:
         pairs_list = [p.split() for p in f.readlines()]
     image_list_path = args.pop("image_list")
     image_list = image_list_path.read_text().rstrip().split("\n") if image_list_path else list(set(chain(*pairs_list)))
