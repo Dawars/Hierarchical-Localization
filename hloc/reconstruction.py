@@ -221,7 +221,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--sfm_dir", type=Path, required=True)
     parser.add_argument("--image_dir", type=Path, required=True)
-    parser.add_argument("--image_list", type=Path, required=True)
+    parser.add_argument("--image_list", type=Path, default=None, required=False)
 
     parser.add_argument("--pairs", type=Path, required=True)
     parser.add_argument("--features", type=Path, required=True)
@@ -271,6 +271,8 @@ if __name__ == "__main__":
     pipeline_options["mapper"] = mapper_options
     pipeline_options["triangulation"] = triangulator_options
 
+    with open(str(args.pairs), "r") as f:
+        pairs_list = [p.split() for p in f.readlines()]
     image_list_path = args.pop("image_list")
-    image_list = image_list_path.read_text().rstrip().split("\n") if image_list_path else None
+    image_list = image_list_path.read_text().rstrip().split("\n") if image_list_path else list(set(chain(*pairs_list)))
     main(**args, image_list=image_list, image_options=image_options, pipeline_options=pipeline_options)
