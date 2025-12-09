@@ -276,9 +276,13 @@ def match_from_paths(
     writer_queue.join()
 
     if is_slurm:
-        logger.info(f'Started writing pairs cache from {idx}')
-        pairs_cache_path.write_text("\n".join(" ".join([i, j]) for i, j in dataset.pairs[idx + 1:]))
-        logger.info('Finished writing pairs cache')
+        if stop:
+            logger.info(f'Matching interrupted. Started writing pairs cache from {idx}')
+            pairs_cache_path.write_text("\n".join(" ".join([i, j]) for i, j in dataset.pairs[idx + 1:]))
+            logger.info('Finished writing pairs cache')
+        else:
+            pairs_cache_path.unlink()
+            logger.info('Finished matching, deleting pairs cache')
     logger.info('Finished exporting matches.')
 
 
