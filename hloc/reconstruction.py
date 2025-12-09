@@ -16,7 +16,6 @@ from .triangulation import (
     import_matches,
     parse_option_args,
 )
-from .utils.io import open_colmap_database
 
 
 def create_empty_db(database_path: Path):
@@ -24,7 +23,7 @@ def create_empty_db(database_path: Path):
         logger.warning("The database already exists, deleting it.")
         database_path.unlink()
     logger.info("Creating an empty database...")
-    with open_colmap_database(database_path) as _:
+    with pycolmap.Database.open(database_path) as _:
         pass
 
 
@@ -53,7 +52,7 @@ def import_images(
 
 def get_image_ids(database_path: Path) -> Dict[str, int]:
     images = {}
-    with open_colmap_database(database_path) as db:
+    with pycolmap.Database.open(database_path) as db:
         images = {image.name: image.image_id for image in db.read_all_images()}
     return images
 
@@ -65,7 +64,7 @@ def incremental_mapping(
     options: Optional[Dict[str, Any]] = None,
     input_path: Optional[Path] = None,
 ) -> dict[int, pycolmap.Reconstruction]:
-    num_images = pycolmap.Database(database_path).num_images
+    num_images = pycolmap.Database.open(database_path).num_images()
     pbars = []
 
     def restart_progress_bar():
@@ -189,7 +188,7 @@ def main(
 
         image_ids = get_image_ids(database)
     if do_import_features:
-        with open_colmap_database(database) as db:
+        with pycolmap.Database.open(database) as db:
             import_features(image_ids, db, features)
     if do_import_matches:
         with open_colmap_database(database) as db:
