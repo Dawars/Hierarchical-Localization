@@ -60,6 +60,23 @@ confs = {
         "max_error": 4,  # max error for assigned keypoints (in px)
         "cell_size": 4,  # size of quantization patch (max 1 kp/patch)
     },
+    "mast3r": {
+        "output": "matches-mast3r",
+        "model": {
+            "name": "mast3r",
+            "weights": "vit_large",
+            "max_keypoints": 30_000,
+            "match_threshold": 0.2,
+        },
+        "preprocessing": {
+            "grayscale": False,
+            "resize_max": 512,
+            "dfactor": 16,
+        },
+
+        "max_error": 4,  # max error for assigned keypoints (in px)
+        "cell_size": 4,  # size of quantization patch (max 1 kp/patch)
+    }
 }
 
 
