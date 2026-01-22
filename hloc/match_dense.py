@@ -64,9 +64,46 @@ confs = {
         "output": "matches-mast3r",
         "model": {
             "name": "mast3r",
-            "weights": "vit_large",
+            "repo_id": "Realcat/imatchui_checkpoints",
+            "model_name": "mast3r/MASt3R_ViTLarge_BaseDecoder_512_catmlpdpt_metric.pth",
             "max_keypoints": 30_000,
             "match_threshold": 0.2,
+        },
+        "preprocessing": {
+            "grayscale": False,
+            "resize_max": 512,
+            "dfactor": 16,
+        },
+
+        "max_error": 4,  # max error for assigned keypoints (in px)
+        "cell_size": 4,  # size of quantization patch (max 1 kp/patch)
+    },
+    "aerial-mast3r": {
+        "output": "matches-mast3r",
+        "model": {
+            "name": "mast3r",
+            "repo_id": "doppelgangers25/doppelgangers_plusplus",
+            "model_name": "checkpoint-dg+visym.pth",
+            "max_keypoints": 30_000,
+            "match_threshold": 0.2,
+        },
+        "preprocessing": {
+            "grayscale": False,
+            "resize_max": 512,
+            "dfactor": 16,
+        },
+
+        "max_error": 4,  # max error for assigned keypoints (in px)
+        "cell_size": 4,  # size of quantization patch (max 1 kp/patch)
+    },
+    "aerial-mast3r-doppelganger": {
+        "output": "matches-mast3r",
+        "model": {
+            "name": "mast3r",
+            "repo_id": "Dawars/AerialMASt3R-Doppelgangers",
+            "model_name": "checkpoint-dg+visym.pth",
+            "max_keypoints": 30_000,
+            "match_threshold": 0.8,
         },
         "preprocessing": {
             "grayscale": False,

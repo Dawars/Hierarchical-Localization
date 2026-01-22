@@ -4,6 +4,7 @@ from pathlib import Path
 import numpy as np
 import torch
 import torchvision.transforms as tfm
+from scipy.special import softmax
 
 from .. import logger
 
@@ -23,13 +24,16 @@ from hloc.matchers.duster import Duster
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# model hub: https://huggingface.co/Realcat/imatchui_checkpoint
+# model hub: https://huggingface.co/Realcat/imatchui_checkpoints
 MODEL_REPO_ID = "Realcat/imatchui_checkpoints"
+# model for doppelganger++ doppelgangers25/doppelgangers_plusplus, checkpoint-dg+visym.pth
+# model for aerial doppelganger++
 
 class Mast3r(Duster):
     default_conf = {
         "name": "Mast3r",
-        "model_name": "MASt3R_ViTLarge_BaseDecoder_512_catmlpdpt_metric.pth",
+        "repo_id" : MODEL_REPO_ID,
+        "model_name": "mast3r/MASt3R_ViTLarge_BaseDecoder_512_catmlpdpt_metric.pth",
         "max_keypoints": 2000,
         "vit_patch_size": 16,
     }
@@ -38,9 +42,7 @@ class Mast3r(Duster):
         self.normalize = tfm.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
         model_path = self._download_model(
             repo_id=MODEL_REPO_ID,
-            filename="{}/{}".format(
-                Path(__file__).stem, self.conf["model_name"]
-            ),
+            filename=self.conf["model_name"],
         )
         self.net = AsymmetricMASt3R.from_pretrained(model_path).to(DEVICE)
         logger.info("Loaded Mast3r model")
@@ -118,4 +120,28 @@ class Mast3r(Duster):
                 "keypoints0": torch.from_numpy(mkpts0),
                 "keypoints1": torch.from_numpy(mkpts1),
             }
+
+        # calculate doppelganger scores if available
+        if "pred1" in output and "pred2" in output:
+            if isinstance(output['pred1'], list):
+                pred1 = torch.stack(output['pred1'], dim=0)
+            else:
+                pred1 = output['pred1']
+
+            if isinstance(output['pred2'], list):
+                pred2 = torch.stack(output['pred2'], dim=0)
+            else:
+                pred2 = output['pred2']
+
+            score_s1 = softmax(pred1.detach().cpu().numpy(), axis=1)
+            score_s2 = softmax(pred2.detach().cpu().numpy(), axis=1)
+            vote_0 = sum(score_s1[:, 0] > score_s1[:, 1]) + sum(score_s2[:, 0] > score_s2[:, 1])
+            vote_1 = sum(score_s1[:, 1] > score_s1[:, 0]) + sum(score_s2[:, 1] > score_s2[:, 0])
+            if vote_1 > vote_0:
+                score = np.max((score_s1[:, 1], score_s2[:, 1]))
+            elif vote_1 < vote_0:
+                score = np.min((score_s1[:, 1], score_s2[:, 1]))
+            else:
+                score = np.mean((score_s1[:, 1], score_s2[:, 1]))
+            pred["scores"] = score
         return pred
