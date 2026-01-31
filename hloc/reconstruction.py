@@ -139,7 +139,8 @@ def run_reconstruction(
     ]:
         if (sfm_dir / filename).exists():
             (sfm_dir / filename).unlink()
-        shutil.move(str(models_path / str(largest_index) / filename), str(sfm_dir))
+        shutil.copy2(
+            str(models_path / str(largest_index) / filename), str(sfm_dir))
     return reconstructions[largest_index]
 
 
