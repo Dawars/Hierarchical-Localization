@@ -164,7 +164,7 @@ confs = {
         "output": "feats-dad",
         "model": {
             "name": "dad",
-            "max_keypoints": 8192,
+            "max_keypoints": 10_000,
         },
         "preprocessing": {
             "grayscale": False,
