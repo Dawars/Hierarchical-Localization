@@ -160,6 +160,17 @@ confs = {
             "resize_max": 1024,
         },
     },
+    "dad": {
+        "output": "feats-dad",
+        "model": {
+            "name": "dad",
+            "max_keypoints": 8192,
+        },
+        "preprocessing": {
+            "grayscale": False,
+            "resize_max": 1024,
+        },
+    },
     # Global descriptors
     "dir": {
         "output": "global-feats-dir",
