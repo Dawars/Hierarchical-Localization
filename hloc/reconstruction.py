@@ -191,7 +191,7 @@ def main(
         with pycolmap.Database.open(database) as db:
             import_features(image_ids, db, features)
     if do_import_matches:
-        with open_colmap_database(database) as db:
+        with pycolmap.Database.open(database) as db:
             import_matches(image_ids, db, pairs, matches,
                            min_match_score, skip_geometric_verification)
     if not skip_geometric_verification:
