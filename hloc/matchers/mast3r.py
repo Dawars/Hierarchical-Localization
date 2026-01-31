@@ -41,7 +41,7 @@ class Mast3r(Duster):
     def _init(self, conf):
         self.normalize = tfm.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
         model_path = self._download_model(
-            repo_id=MODEL_REPO_ID,
+            repo_id=self.conf["repo_id"],
             filename=self.conf["model_name"],
         )
         self.net = AsymmetricMASt3R.from_pretrained(model_path).to(DEVICE)
@@ -122,16 +122,16 @@ class Mast3r(Duster):
             }
 
         # calculate doppelganger scores if available
-        if "pred1" in output and "pred2" in output:
-            if isinstance(output['pred1'], list):
-                pred1 = torch.stack(output['pred1'], dim=0)
+        if "pt_pred1" in output and "pt_pred2" in output:
+            if isinstance(output['pt_pred1'], list):
+                pred1 = torch.stack(output['pt_pred1'], dim=0)
             else:
-                pred1 = output['pred1']
+                pred1 = output['pt_pred1']
 
-            if isinstance(output['pred2'], list):
-                pred2 = torch.stack(output['pred2'], dim=0)
+            if isinstance(output['pt_pred2'], list):
+                pred2 = torch.stack(output['pt_pred2'], dim=0)
             else:
-                pred2 = output['pred2']
+                pred2 = output['pt_pred2']
 
             score_s1 = softmax(pred1.detach().cpu().numpy(), axis=1)
             score_s2 = softmax(pred2.detach().cpu().numpy(), axis=1)
