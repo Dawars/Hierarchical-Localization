@@ -15,6 +15,7 @@ from .triangulation import (
     import_matches,
     parse_option_args,
 )
+from .camera_triplets import apply_camera_triplet_pruning
 
 
 def create_empty_db(database_path: Path):
@@ -152,6 +153,7 @@ def main(
     image_list: Optional[List[str]] = None,
     image_options: Optional[Dict[str, Any]] = None,
     mapper_options: Optional[Dict[str, Any]] = None,
+    camera_triplet_threshold: float = -1,
 ) -> pycolmap.Reconstruction:
     assert features.exists(), features
     assert pairs.exists(), pairs
@@ -178,6 +180,10 @@ def main(
         )
     if not skip_geometric_verification:
         estimation_and_geometric_verification(database, pairs, verbose)
+
+    if camera_triplet_threshold > 0:
+        apply_camera_triplet_pruning(database, image_ids, camera_triplet_threshold, verbose)
+
     reconstruction = run_reconstruction(
         sfm_dir, database, image_dir, verbose, mapper_options
     )
@@ -206,6 +212,8 @@ if __name__ == "__main__":
     )
     parser.add_argument("--skip_geometric_verification", action="store_true")
     parser.add_argument("--min_match_score", type=float)
+    parser.add_argument("--camera_triplet_threshold", default=-1, type=float,
+                        help="Pruning matches based on camera triplets, helps with ambiguous pairs (doppelgangers)")
     parser.add_argument("--verbose", action="store_true")
 
     parser.add_argument(
