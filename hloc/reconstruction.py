@@ -95,14 +95,13 @@ def incremental_mapping(
 
 
 def run_reconstruction(
-    sfm_dir: Path,
+    models_path: Path,
     database_path: Path,
     image_dir: Path,
     verbose: bool = False,
     options: Optional[Dict[str, Any]] = None,
     input_path: Optional[Path] = None,
 ) -> pycolmap.Reconstruction:
-    models_path = sfm_dir / "models"
     models_path.mkdir(exist_ok=True, parents=True)
     logger.info("Running 3D reconstruction...")
     if options is None:
@@ -131,17 +130,6 @@ def run_reconstruction(
         f"Largest model is #{largest_index} " f"with {largest_num_images} images."
     )
 
-    for filename in [
-        "images.bin",
-        "cameras.bin",
-        "points3D.bin",
-        "frames.bin",
-        "rigs.bin",
-    ]:
-        if (sfm_dir / filename).exists():
-            (sfm_dir / filename).unlink()
-        shutil.copy2(
-            str(models_path / str(largest_index) / filename), str(sfm_dir))
     return reconstructions[largest_index]
 
 
@@ -202,10 +190,16 @@ def main(
         estimation_and_geometric_verification(database, pairs, verbose)
 
     if camera_triplet_threshold > 0:
+        models_path = sfm_dir / f"models_{camera_triplet_threshold}"
+        old_database = database
+        database = old_database.parent / f"database_{camera_triplet_threshold}.db"
+        shutil.copy(old_database, database)
         apply_camera_triplet_pruning(database, image_ids, camera_triplet_threshold, verbose)
+    else:
+        models_path = sfm_dir / "models"
 
     reconstruction = run_reconstruction(
-        sfm_dir, database, image_dir, verbose, pipeline_options, input_path,
+        models_path, database, image_dir, verbose, pipeline_options, input_path,
     )
     if reconstruction is not None:
         logger.info(
