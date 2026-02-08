@@ -151,7 +151,7 @@ def apply_camera_triplet_pruning(database_path: Path, image_ids: Dict[str, int],
     tau = adaptive_threshold(component_graphs[0], min_score=camera_triplet_threshold)
     num_removed_edges = 0
     with pycolmap.Database.open(database_path) as db:
-        for pair_id, score in tqdm(edge_scores.items(), disabled=not verbose):
+        for pair_id, score in tqdm(edge_scores.items(), disable=not verbose):
             image_id1, image_id2 = pair_id_to_image_ids(pair_id)
             if score < tau:
                 db.delete_inlier_matches(image_id1, image_id2)
