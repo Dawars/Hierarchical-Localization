@@ -142,20 +142,20 @@ def apply_camera_triplet_pruning(database_path: Path, image_ids: Dict[str, int],
             logger.info(f"  Component {i + 1}: {len(comp)} nodes")
 
     # Create subgraphs
-    component_graphs = [G.subgraph(comp).copy() for comp in components_sorted]
+    component_graphs = [G.subgraph(comp).copy() for comp in components_sorted if len(comp) > 0]
+    for component in component_graphs:
+        remove_non_tri_edges(component)
+        inlier_dict = {pair_id: num_inliers for pair_id, num_inliers in zip(*inlier_counts)}
+        edge_scores = score_edges(component, inlier_dict)
 
-    remove_non_tri_edges(component_graphs[0])
-    inlier_dict = {pair_id: num_inliers for pair_id, num_inliers in zip(*inlier_counts)}
-    edge_scores = score_edges(component_graphs[0], inlier_dict)
-
-    tau = adaptive_threshold(component_graphs[0], min_score=camera_triplet_threshold)
-    num_removed_edges = 0
-    with pycolmap.Database.open(database_path) as db:
-        for pair_id, score in tqdm(edge_scores.items(), disable=not verbose):
-            image_id1, image_id2 = pair_id_to_image_ids(pair_id)
-            if score < tau:
-                db.delete_inlier_matches(image_id1, image_id2)
-                num_removed_edges += 1
+        tau = adaptive_threshold(component, min_score=camera_triplet_threshold)
+        num_removed_edges = 0
+        with pycolmap.Database.open(database_path) as db:
+            for pair_id, score in tqdm(edge_scores.items(), disable=not verbose):
+                image_id1, image_id2 = pair_id_to_image_ids(pair_id)
+                if score < tau:
+                    db.delete_inlier_matches(image_id1, image_id2)
+                    num_removed_edges += 1
     if verbose:
         logger.info(f"{num_removed_edges} edges with scores lower than {tau=} {camera_triplet_threshold=} removed")
 
