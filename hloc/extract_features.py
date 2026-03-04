@@ -334,20 +334,14 @@ def main(
             # add keypoint uncertainties scaled to the original resolution
             uncertainty = getattr(model, "detection_noise", 1) * scales.mean()
             if 'mask' in data:
-                mask = data['mask'][0]  # cuz `batch_size == 1`
+                mask = data['mask'][0] > 0  # cuz `batch_size == 1`
                 valid_keypoint = mask[pred['keypoints'][:, 1].astype('int'), pred['keypoints'][:, 0].astype('int')]
-                if valid_keypoint.sum() == 0:
-                    pred['keypoints'] = pred['keypoints'][:0]  # save empty features
-                    if 'descriptors' in pred:
-                        pred['descriptors'] = pred['descriptors'][:, :0]
-                    if 'keypoint_scores' in pred:
-                        pred['keypoint_scores'] = pred['keypoint_scores'][:0]
-                else:    
-                    pred['keypoints'] = pred['keypoints'][valid_keypoint > 0]
-                    if 'descriptors' in pred:
-                        pred['descriptors'] = pred['descriptors'][:, valid_keypoint > 0]
-                    if 'keypoint_scores' in pred:
-                        pred['keypoint_scores'] = pred['keypoint_scores'][valid_keypoint > 0]
+                valid_mask = valid_keypoint.numpy().astype(bool)
+                pred['keypoints'] = pred['keypoints'][valid_mask]
+                if 'descriptors' in pred:
+                    pred['descriptors'] = pred['descriptors'][:, valid_mask]
+                if 'keypoint_scores' in pred:
+                    pred['keypoint_scores'] = pred['keypoint_scores'][valid_mask]
         if as_half:
             for k in pred:
                 dt = pred[k].dtype
