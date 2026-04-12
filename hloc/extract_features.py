@@ -160,6 +160,28 @@ confs = {
             "resize_max": 1024,
         },
     },
+    "loma_aachen": {
+        "output": "feats-loma-n4096-r1024",
+        "model": {
+            "name": "loma",
+            "max_keypoints": 4096,
+        },
+        "preprocessing": {
+            "grayscale": False,
+            "resize_max": 1024,
+        },
+    },
+    "loma_inloc": {
+        "output": "feats-loma-n4096-r1600",
+        "model": {
+            "name": "loma",
+            "max_keypoints": 4096,
+        },
+        "preprocessing": {
+            "grayscale": False,
+            "resize_max": 1600,
+        },
+    },
     "dad": {
         "output": "feats-dad",
         "model": {
