@@ -182,6 +182,17 @@ confs = {
             "resize_max": 1600,
         },
     },
+    "loma_10k": {
+        "output": "feats-loma-10k",
+        "model": {
+            "name": "loma",
+            "max_keypoints": 10_000,
+        },
+        "preprocessing": {
+            "grayscale": False,
+            "resize_max": 1600,
+        },
+    },
     "dad": {
         "output": "feats-dad",
         "model": {
