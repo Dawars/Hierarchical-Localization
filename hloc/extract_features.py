@@ -150,10 +150,11 @@ confs = {
         },
     },
     "aliked-n16-rot": {
-        "output": "feats-aliked-n16-rot",
+        "output": "feats-aliked-n16-rot-4k",
         "model": {
             "name": "aliked",
             "model_name": "aliked-n16rot",
+            "max_num_keypoints": 4096,
         },
         "preprocessing": {
             "grayscale": False,
