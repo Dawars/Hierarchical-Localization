@@ -149,11 +149,11 @@ confs = {
             "resize_max": 1600,
         },
     },
-    "aliked-n16": {
-        "output": "feats-aliked-n16",
+    "aliked-n16-rot": {
+        "output": "feats-aliked-n16-rot",
         "model": {
             "name": "aliked",
-            "model_name": "aliked-n16",
+            "model_name": "aliked-n16rot",
         },
         "preprocessing": {
             "grayscale": False,
