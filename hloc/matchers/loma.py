@@ -46,10 +46,18 @@ class LoMaMatcher(BaseModel):
         )
         scores = output["scores"]
 
-        b = data["descriptors0"].shape[0]
-        m0, m1, mscores0, mscores1 = filter_matches(
-            scores, self.conf["filter_threshold"]
-        )
+        b = scores.shape[0]
+        n, m = scores.shape[1], scores.shape[2]
+        
+        if n == 0 or m == 0:
+            m0 = scores.new_full((b, n), -1, dtype=torch.long)
+            m1 = scores.new_full((b, m), -1, dtype=torch.long)
+            mscores0 = scores.new_zeros((b, n))
+            mscores1 = scores.new_zeros((b, m))
+        else:
+            m0, m1, mscores0, mscores1 = filter_matches(
+                scores, self.conf["filter_threshold"]
+            )
         matches, mscores = [], []
         for k in range(b):
             valid = m0[k] > -1
