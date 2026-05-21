@@ -6,11 +6,21 @@ from loma.device import device
 
 from ..utils.base_model import BaseModel
 
+"""
+loma_B
+loma_B128
+# loma_Bturbo
+# loma_Bturbov2
+loma_G
+loma_L
+loma_R
+"""
 
 class LoMaExtractor(BaseModel):
     default_conf = {
         "max_keypoints": 2048,
         "compile": False,
+        "model_name": "loma_B"
     }
     required_inputs = ["image"]
 
@@ -18,12 +28,13 @@ class LoMaExtractor(BaseModel):
         # DaD weights loaded by default
         self.detector = DaD(DaD.Cfg(compile=conf["compile"])).eval()
 
+        descriptor_arch = "dedode_b" if conf['model_name'] == "loma_B128" else "dedode_g"
         # Descriptor weights need to be manually loaded
         self.descriptor = DeDoDeDescriptor(
-            DeDoDeDescriptor.Cfg(compile=conf["compile"], arch="dedode_g")
+            DeDoDeDescriptor.Cfg(compile=conf["compile"], arch=descriptor_arch)
         ).eval()
         weights = torch.hub.load_state_dict_from_url(
-            "https://github.com/davnords/storage/releases/download/loma/loma_B.pt",
+            f"https://github.com/davnords/storage/releases/download/loma/{conf['model_name']}.pt",
             map_location=device,
         )
         weights = {k: v for k, v in weights.items() if k.startswith("_descriptor.")}
