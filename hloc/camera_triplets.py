@@ -142,7 +142,7 @@ def apply_camera_triplet_pruning(database_path: Path, image_ids: Dict[str, int],
             logger.info(f"  Component {i + 1}: {len(comp)} nodes")
 
     # Create subgraphs
-    component_graphs = [G.subgraph(comp).copy() for comp in components_sorted if len(comp) > 0]
+    component_graphs = [G.subgraph(comp).copy() for comp in components_sorted if len(comp) > 1]
     for component in component_graphs:
         remove_non_tri_edges(component)
         inlier_dict = {pair_id: num_inliers for pair_id, num_inliers in zip(*inlier_counts)}
