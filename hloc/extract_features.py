@@ -11,6 +11,7 @@ import h5py
 import numpy as np
 import PIL.Image
 import torch
+import torch.nn.functional as F
 from tqdm import tqdm
 
 from . import extractors, logger
@@ -319,6 +320,52 @@ class ImageDataset(torch.utils.data.Dataset):
         return len(self.names)
 
 
+def pad_collate_fn(batch):
+    """Collate function that pads images to the max (H, W) in the batch.
+
+    Each item in batch is a dict from ImageDataset.__getitem__ with keys:
+      - 'image': numpy array (C, H, W)
+      - 'original_size': numpy array (2,) with (W, H) of original image
+      - optionally 'mask': numpy array (H, W)
+
+    Returns a dict with:
+      - 'image': tensor (B, C, max_H, max_W) zero-padded
+      - 'original_size': tensor (B, 2)
+      - 'image_size': tensor (B, 2) with (W, H) of each image before padding
+      - optionally 'mask': list of tensors (one per image, or None)
+    """
+    images = [torch.from_numpy(item["image"]) for item in batch]
+    max_h = max(img.shape[1] for img in images)
+    max_w = max(img.shape[2] for img in images)
+
+    padded = []
+    image_sizes = []
+    for img in images:
+        h, w = img.shape[1], img.shape[2]
+        image_sizes.append(np.array([w, h]))
+        pad_w = max_w - w
+        pad_h = max_h - h
+        # Pad right and bottom only (no offset needed for keypoint correction)
+        padded.append(F.pad(img, (0, pad_w, 0, pad_h), mode="constant", value=0.0))
+
+    result = {
+        "image": torch.stack(padded),
+        "original_size": torch.stack(
+            [torch.from_numpy(item["original_size"]) for item in batch]
+        ),
+        "image_size": torch.from_numpy(np.stack(image_sizes)),
+    }
+
+    # Handle masks: store as list since they may have different sizes
+    if "mask" in batch[0]:
+        result["mask"] = [
+            torch.from_numpy(item["mask"]) if "mask" in item else None
+            for item in batch
+        ]
+
+    return result
+
+
 @torch.no_grad()
 def main(
     conf: Dict,
@@ -329,6 +376,7 @@ def main(
     feature_path: Optional[Path] = None,
     overwrite: bool = False,
     mask_dir: Optional[Path] = None,
+    batch_size: int = 1,
 ) -> Path:
     logger.info(
         "Extracting local features with configuration:" f"\n{pprint.pformat(conf)}"
@@ -350,57 +398,129 @@ def main(
     Model = dynamic_load(extractors, conf["model"]["name"])
     model = Model(conf["model"]).eval().to(device)
 
-    loader = torch.utils.data.DataLoader(
-        dataset, num_workers=1, shuffle=False, pin_memory=True
-    )
-    for idx, data in enumerate(tqdm(loader)):
-        name = dataset.names[idx]
-        pred = model({"image": data["image"].to(device, non_blocking=True)})
-        pred = {k: v[0].cpu().numpy() for k, v in pred.items()}
+    # Use batch_size from conf if specified, otherwise use the parameter
+    effective_batch_size = conf.get("batch_size", batch_size)
 
-        pred["image_size"] = original_size = data["original_size"][0].numpy()
-        if "keypoints" in pred:
-            size = np.array(data["image"].shape[-2:][::-1])
-            scales = (original_size / size).astype(np.float32)
-            pred["keypoints"] = (pred["keypoints"] + 0.5) * scales[None] - 0.5
-            if "scales" in pred:
-                pred["scales"] *= scales.mean()
-            # add keypoint uncertainties scaled to the original resolution
-            uncertainty = getattr(model, "detection_noise", 1) * scales.mean()
-            if 'mask' in data:
-                mask = data['mask'][0] > 0  # cuz `batch_size == 1`
-                valid_keypoint = mask[pred['keypoints'][:, 1].astype('int'), pred['keypoints'][:, 0].astype('int')]
-                valid_mask = valid_keypoint.numpy().astype(bool)
-                pred['keypoints'] = pred['keypoints'][valid_mask]
-                if 'descriptors' in pred:
-                    pred['descriptors'] = pred['descriptors'][:, valid_mask]
-                if 'keypoint_scores' in pred:
-                    pred['keypoint_scores'] = pred['keypoint_scores'][valid_mask]
-        if as_half:
-            for k in pred:
-                dt = pred[k].dtype
-                if (dt == np.float32) and (dt != np.float16):
-                    pred[k] = pred[k].astype(np.float16)
+    if effective_batch_size > 1:
+        loader = torch.utils.data.DataLoader(
+            dataset,
+            batch_size=effective_batch_size,
+            num_workers=1,
+            shuffle=False,
+            pin_memory=True,
+            collate_fn=pad_collate_fn,
+            drop_last=False,
+        )
+    else:
+        loader = torch.utils.data.DataLoader(
+            dataset, num_workers=1, shuffle=False, pin_memory=True
+        )
 
-        with h5py.File(str(feature_path), "a", libver="latest") as fd:
-            try:
-                if name in fd:
-                    del fd[name]
-                grp = fd.create_group(name)
-                for k, v in pred.items():
-                    grp.create_dataset(k, data=v)
-                if "keypoints" in pred:
-                    grp["keypoints"].attrs["uncertainty"] = uncertainty
-            except OSError as error:
-                if "No space left on device" in error.args[0]:
-                    logger.error(
-                        "Out of disk space: storing features on disk can take "
-                        "significant space, did you enable the as_half flag?"
+    global_idx = 0
+    for data in tqdm(loader):
+        images = data["image"].to(device, non_blocking=True)
+        actual_bs = images.shape[0]
+
+        pred_batch = model({"image": images})
+
+        for i in range(actual_bs):
+            name = dataset.names[global_idx + i]
+
+            # Extract per-image prediction from batch
+            pred = {}
+            for k, v in pred_batch.items():
+                if isinstance(v, list):
+                    pred[k] = v[i].cpu().numpy()
+                elif isinstance(v, torch.Tensor):
+                    pred[k] = v[i].cpu().numpy()
+                else:
+                    pred[k] = v
+
+            # Use the actual image size (before padding) for this image
+            if effective_batch_size > 1:
+                image_wh = data["image_size"][i].numpy()  # (W, H) before padding
+            else:
+                image_wh = np.array(data["image"].shape[-2:][::-1])
+
+            original_size = data["original_size"][i].numpy()
+            pred["image_size"] = original_size
+
+            if "keypoints" in pred:
+                size = image_wh  # (W, H) of the image fed to the model
+                scales = (original_size / size).astype(np.float32)
+                pred["keypoints"] = (pred["keypoints"] + 0.5) * scales[None] - 0.5
+                if "scales" in pred:
+                    pred["scales"] *= scales.mean()
+                # add keypoint uncertainties scaled to the original resolution
+                uncertainty = getattr(model, "detection_noise", 1) * scales.mean()
+
+                # Filter keypoints outside the original image bounds
+                # (can happen when images are padded in batched mode)
+                if effective_batch_size > 1:
+                    kp = pred["keypoints"]
+                    valid = (
+                        (kp[:, 0] >= 0)
+                        & (kp[:, 0] < original_size[0])
+                        & (kp[:, 1] >= 0)
+                        & (kp[:, 1] < original_size[1])
                     )
-                    del grp, fd[name]
-                raise error
+                    if not valid.all():
+                        pred["keypoints"] = pred["keypoints"][valid]
+                        if "descriptors" in pred:
+                            pred["descriptors"] = pred["descriptors"][:, valid]
+                        if "keypoint_scores" in pred:
+                            pred["keypoint_scores"] = pred["keypoint_scores"][valid]
+                        if "scores" in pred:
+                            pred["scores"] = pred["scores"][valid]
 
-        del pred
+                if "mask" in data:
+                    mask_data = data["mask"]
+                    if isinstance(mask_data, list):
+                        mask = mask_data[i]
+                    else:
+                        mask = mask_data[i]
+                    if mask is not None:
+                        mask = mask > 0
+                        valid_keypoint = mask[
+                            pred["keypoints"][:, 1].astype("int"),
+                            pred["keypoints"][:, 0].astype("int"),
+                        ]
+                        valid_mask = valid_keypoint.numpy().astype(bool)
+                        pred["keypoints"] = pred["keypoints"][valid_mask]
+                        if "descriptors" in pred:
+                            pred["descriptors"] = pred["descriptors"][:, valid_mask]
+                        if "keypoint_scores" in pred:
+                            pred["keypoint_scores"] = pred["keypoint_scores"][
+                                valid_mask
+                            ]
+
+            if as_half:
+                for k in pred:
+                    dt = pred[k].dtype
+                    if (dt == np.float32) and (dt != np.float16):
+                        pred[k] = pred[k].astype(np.float16)
+
+            with h5py.File(str(feature_path), "a", libver="latest") as fd:
+                try:
+                    if name in fd:
+                        del fd[name]
+                    grp = fd.create_group(name)
+                    for k, v in pred.items():
+                        grp.create_dataset(k, data=v)
+                    if "keypoints" in pred:
+                        grp["keypoints"].attrs["uncertainty"] = uncertainty
+                except OSError as error:
+                    if "No space left on device" in error.args[0]:
+                        logger.error(
+                            "Out of disk space: storing features on disk can take "
+                            "significant space, did you enable the as_half flag?"
+                        )
+                        del grp, fd[name]
+                    raise error
+
+            del pred
+
+        global_idx += actual_bs
 
     logger.info("Finished exporting features.")
     return feature_path
@@ -416,7 +536,8 @@ if __name__ == "__main__":
     parser.add_argument("--as_half", action="store_true")
     parser.add_argument("--image_list", type=Path)
     parser.add_argument("--feature_path", type=Path)
-    parser.add_argument('--mask_dir', type=Path)
+    parser.add_argument("--mask_dir", type=Path)
+    parser.add_argument("--batch_size", type=int, default=1)
     args = parser.parse_args()
     main(
         confs[args.conf],
@@ -426,4 +547,5 @@ if __name__ == "__main__":
         args.image_list,
         args.feature_path,
         mask_dir=args.mask_dir,
+        batch_size=args.batch_size,
     )
