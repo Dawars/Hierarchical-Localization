@@ -256,12 +256,15 @@ class ImageDataset(torch.utils.data.Dataset):
         "interpolation": "cv2_area",  # pil_linear is more accurate but slower
     }
 
-    def __init__(self, root, conf, paths=None, mask_dir: Optional[Path]=None):
+    def __init__(self, root, conf, paths=None, mask_dir: Optional[Path]=None, stereo_list_path: Optional[Path]=None):
         self.conf = conf = SimpleNamespace(**{**self.default_conf, **conf})
         self.root = root
         self.mask_dir = mask_dir
+        self.stereo_list = parse_image_lists(stereo_list_path)
         if self.mask_dir:
             print("Using masks", mask_dir)
+        if self.stereo_list:
+            print("Using stereo list", stereo_list_path)
 
         if paths is None:
             paths = []
@@ -287,9 +290,12 @@ class ImageDataset(torch.utils.data.Dataset):
     def __getitem__(self, idx):
         name = self.names[idx]
         image = read_image(self.root / name, self.conf.grayscale)
+
+        if name in self.stereo_list:
+            image = image[:, :image.shape[1] // 2]  # crop right half
+
         image = image.astype(np.float32)
         size = image.shape[:2][::-1]
-
         if self.conf.resize_max and (
             self.conf.resize_force or max(size) > self.conf.resize_max
         ):
@@ -376,13 +382,14 @@ def main(
     feature_path: Optional[Path] = None,
     overwrite: bool = False,
     mask_dir: Optional[Path] = None,
+    stereo_list_path: Optional[Path] = None,
     batch_size: int = 1,
 ) -> Path:
     logger.info(
         "Extracting local features with configuration:" f"\n{pprint.pformat(conf)}"
     )
 
-    dataset = ImageDataset(image_dir, conf["preprocessing"], image_list, mask_dir)
+    dataset = ImageDataset(image_dir, conf["preprocessing"], image_list, mask_dir, stereo_list_path)
     if feature_path is None:
         feature_path = Path(export_dir, conf["output"] + ".h5")
     feature_path.parent.mkdir(exist_ok=True, parents=True)
@@ -537,6 +544,7 @@ if __name__ == "__main__":
     parser.add_argument("--image_list", type=Path)
     parser.add_argument("--feature_path", type=Path)
     parser.add_argument("--mask_dir", type=Path)
+    parser.add_argument("--stereo_list_path", type=Path, help="Path to image list with filenames of stereo images where the right half of the image will be cut during feature extraction.")
     parser.add_argument("--batch_size", type=int, default=1)
     args = parser.parse_args()
     main(
@@ -547,5 +555,6 @@ if __name__ == "__main__":
         args.image_list,
         args.feature_path,
         mask_dir=args.mask_dir,
+        stereo_list_path=args.stereo_list_path,
         batch_size=args.batch_size,
     )
