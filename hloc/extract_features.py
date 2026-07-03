@@ -260,11 +260,12 @@ class ImageDataset(torch.utils.data.Dataset):
         self.conf = conf = SimpleNamespace(**{**self.default_conf, **conf})
         self.root = root
         self.mask_dir = mask_dir
-        self.stereo_list = parse_image_lists(stereo_list_path)
+        self.stereo_list = []
         if self.mask_dir:
             print("Using masks", mask_dir)
-        if self.stereo_list:
+        if stereo_list_path:
             print("Using stereo list", stereo_list_path)
+            self.stereo_list = parse_image_lists(stereo_list_path)
 
         if paths is None:
             paths = []
