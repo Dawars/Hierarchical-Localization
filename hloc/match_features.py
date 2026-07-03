@@ -310,4 +310,4 @@ if __name__ == '__main__':
         "--conf", type=str, default="superglue", choices=list(confs.keys())
     )
     args = parser.parse_args()
-    main(confs[args.conf], args.pairs, args.features, args.export_dir)
+    main(confs[args.conf], args.pairs, args.features, args.export_dir, args.matches)
