@@ -1,25 +1,24 @@
 from pathlib import Path
 from typing import Mapping, Tuple
 
-import cv2
+try:
+    import pillow_jxl
+except ImportError:
+    print("pillow_jxl not installed")
+from PIL import Image
 import h5py
 import numpy as np
 import pycolmap
 
 from .parsers import names_to_pair, names_to_pair_old
 
-
 def read_image(path, grayscale=False):
-    if grayscale:
-        mode = cv2.IMREAD_GRAYSCALE
-    else:
-        mode = cv2.IMREAD_COLOR
-    image = cv2.imread(str(path), mode | cv2.IMREAD_IGNORE_ORIENTATION)
-    if image is None:
+    try:
+        img = Image.open(str(path))
+        img = img.convert("L") if grayscale else img.convert("RGB")
+    except Exception:
         raise ValueError(f"Cannot read image {path}.")
-    if not grayscale and len(image.shape) == 3:
-        image = image[:, :, ::-1]  # BGR to RGB
-    return image
+    return np.array(img)
 
 
 def list_h5_names(path):
