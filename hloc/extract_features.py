@@ -311,6 +311,7 @@ class ImageDataset(torch.utils.data.Dataset):
         image = image / 255.0
 
         data = {
+            "name": name,
             "image": image,
             "original_size": np.array(size),
         }
@@ -480,8 +481,8 @@ def main(
                             pred["keypoint_scores"] = pred["keypoint_scores"][valid]
                         if "scores" in pred:
                             pred["scores"] = pred["scores"][valid]
-
                 if "mask" in data:
+                    print(data["name"])
                     mask_data = data["mask"]
                     if isinstance(mask_data, list):
                         mask = mask_data[i]
